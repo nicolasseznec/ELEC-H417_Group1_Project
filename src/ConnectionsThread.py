@@ -23,7 +23,7 @@ class ConnectionThread(threading.Thread):
             try:
                 data = self.sock.recv(4096)
                 msg = data.decode()
-                print("Node " + str(self.id) + " received: " + msg)
+                self.node.data_handler(msg)
 
             except socket.timeout:
                 pass
@@ -112,6 +112,7 @@ class NodeServerThread(threading.Thread):
         thread_client = self.create_connection(sock)
 
         self.connected_nodes.append(thread_client)
+
 
     def broadcast_to_network(self, message):
         for node in self.connected_nodes:
