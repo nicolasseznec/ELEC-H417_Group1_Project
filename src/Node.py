@@ -5,12 +5,15 @@ from ConnectionsThread import *
 
 class Node:
     def __init__(self, host, port, index):
+
         self.host = host
         self.port = port
         self.id = index
 
         self.peers = []
-        self.msg = {}
+        self.msg_list = {}
+
+        self.key = None #To be done
 
         self.connection = NodeServerThread(self)
 
@@ -27,7 +30,7 @@ class Node:
         self.connection.broadcast_to_network(message)
 
     def construct_message(self, data, type, input={}):
-        dico = {"data" : data, "type" : type}
+        dico = {"data": data, "type": type}
         dico["time"] = str(time.time())
         dico["sender"] = self.id
         dico["receiver"] = None
@@ -40,7 +43,7 @@ class Node:
         # if receiver :
         #     data.encrypt(receiver.key)        // Example
         input = {"receiver": receiver}
-        message = self.construct_message(data, "msg", input)
+        message = self.construct_message(data, "decrypt", input)
         self.broadcast_to_network(message)
 
     def broadcast_peers_list(self):
@@ -60,13 +63,27 @@ class Node:
             return
 
         encrypted_data = data["data"]
-        decrypted_data = encrypted_data.decrypt()
-        if decrypted_data["type"] == "transfer":
-            self.send_message_to(decrypted_data["data"], decrypted_data["transfer"], receiver=decrypted_data["receiver"])
+        decrypted_data = encrypted_data.decrypt(self.key)
+        type = decrypted_data["type"]
+        if type == "transfer":
+            self.send_message_to(decrypted_data["data"], decrypted_data["transfer"],
+                                 receiver=decrypted_data["receiver"])
+
+        if type == "decrypt":
+            sender = decrypted_data["sender"]
+            msg = decrypted_data["data"]
+            self.print_message(sender, msg)
+
+            if not sender in self.msg_list:
+                self.msg_list["sender"] = []
+            self.msg_list["sender"].append(msg)
+
+        if type == "peers":
+            pass
+
+        # etc
 
 
-        if decrypted_data["type"] == "decrypt":
-            self.print_message(decrypted_data["sender"], decrypted_data["data"])
 
     def print_message(self, sender, msg):
         print("Message received from : " + str(sender))
