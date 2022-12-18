@@ -1,13 +1,12 @@
+from constants import LOCALHOST
 from Node import *
-
-LOCALHOST = "127.0.0.1"
 
 
 def main():
     # Initialization
     # -------- 1. Get the list of Nodes ----------
     # (use a directory authority ?)
-    # Save list ? Or retrieve again each time
+    # Retrieve the list each time
     # Register the new node as part of relays
 
     # -------- 2. Establish the circuit ----------

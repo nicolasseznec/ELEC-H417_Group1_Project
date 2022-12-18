@@ -16,6 +16,7 @@ class TestNode(unittest.TestCase):
         self.node2 = Node("", 102, 2)
         self.node3 = Node("", 103, 3)
 
+        self.connection_test()
         self.message_test()
 
     def connection_test(self):
@@ -34,7 +35,6 @@ class TestNode(unittest.TestCase):
         self.node2.broadcast_to_network("Hello I'm node 2")
         self.node3.broadcast_to_network("Hello I'm node 3")
 
-        sleep(2)
         self.node0.stop_connection()
         self.node1.stop_connection()
         self.node2.stop_connection()

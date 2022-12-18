@@ -1,11 +1,9 @@
 import json
 import random
 import time
-import rsa
 from random import randrange
 
-from ConnectionsThread import *
-from src.ConnectionsThread import NodeServerThread
+from NodeServerThread import *
 
 
 class Node:
@@ -14,16 +12,13 @@ class Node:
         self.port = port
         self.id = index
 
-        self.msg_storage = {}
-
         # Pending messages with a list of Msg_id : (sender_host, sender_port)
         self.pending_msg = {}
 
         # Message first sent from this Node
         self.self_messages = {}
 
-        self.keyPublic, self.keyPrivate = rsa.newkeys(512)  # Generate the public and the private key
-        self.listNodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
+        self.available_nodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
 
         # (host, port) : connection_thread
         self.connected_nodes = {}
@@ -50,32 +45,13 @@ class Node:
         message = {**dico, **overload}
         return message
 
-    def encrypt_message(self, msg, path_list):
-        encrypt1 = json.dumps(msg)
-        encrypt1 = rsa.encrypt(encrypt1.encode("utf-8"),
-                               path_list[2][2])  # path_list(2)(2) donne la publicKey de exitNode
-        encrypt2 = self.construct_message(encrypt1, "msg", receiver=(path_list[2][0], path_list[2][1]))
-
-        # (path_list(1)(0),path_list(1)(1)) -> donne un tuple avec address et port du prochain hop
-
-        encrypt2 = json.dumps(encrypt2)
-        encrypt2 = rsa.encrypt(encrypt2.encode("utf-8"), path_list[1][2])
-
-        encrypt3 = self.construct_message(encrypt2, "msg", receiver=(path_list[1][0], path_list[1][1]))
-        encrypt3 = json.dumps(encrypt3)
-        encrypt3 = rsa.encrypt(encrypt3.encode("utf-8"), path_list(0)(2))
-
-        final_message = self.construct_message(encrypt3, "msg", (path_list[0][0], path_list[0][1]))
-
-        return final_message
-        
     def generate_path(self):
-        n = len(self.listNodes)
+        n = len(self.available_nodes)
         if n < 5:
             print("Not enough nodes")
             return
         else:
-            return random.sample(self.listNodes, 3)
+            return random.sample(self.available_nodes, 3)
 
     def send_message_to(self, data, type, receiver):
         message = self.construct_message(data, type, receiver)
@@ -83,6 +59,7 @@ class Node:
         connection = self.connected_nodes[receiver]
         dumped_message = json.dumps(message)
         connection.send(dumped_message)
+        self.connected_nodes.pop(receiver)
 
     def data_handler(self, data):
         """
@@ -101,29 +78,21 @@ class Node:
                 self.handle_response(msg)
                 return
 
+            # TODO : use an encryption/decryption module
             if not msg["msg_id"] in self.pending_msg:
                 # decryption
                 encrypted_data = msg["data"]
-                decrypted_data = rsa.decrypt(encrypted_data.decode('utf-8'), self.keyPrivate)
-                decrypted_msg = json.loads(decrypted_data)
-
-                # Transferring the message
-                self.send_message_to(decrypted_msg["data"], "msg", decrypted_msg["receiver"])
-
-                # Add the message+sender in the pending list
-                self.pending_msg[msg["msg_id"]] = msg["sender"]
-
+                print(encrypted_data)
             else:
                 # encryption
                 data = json.dumps(msg)
-                encrypted_data = rsa.encrypt(data.encode('utf-8'), self.keyPublic)
-
+                # encrypted_data = rsa.encrypt(data.encode('utf-8'), self.keyPublic)
                 # Transferring the message
-                receiver = self.pending_msg.get(msg["msg_id"])
-                self.send_message_to(encrypted_data, "msg", receiver)
+                # receiver = self.pending_msg.get(msg["msg_id"])
+                # self.send_message_to(encrypted_data, "msg", receiver)
 
                 # Remove the message because it is on its way back
-                self.pending_msg.pop(msg["msg_id"])
+                # self.pending_msg.pop(msg["msg_id"])
 
     def print_message(self, sender, msg):
         print("Node " + self.id + "received Message from : " + str(sender))
