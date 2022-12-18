@@ -19,22 +19,16 @@ def connection_test():
     node2.connect_to(LOCALHOST, 103)
     node3.connect_to(LOCALHOST, 1000)
 
-    node0.broadcast_to_network("Hello I'm node 0")
-    node1.broadcast_to_network("Hello I'm node 1")
-    node2.broadcast_to_network("Hello I'm node 2")
-    node3.broadcast_to_network("Hello I'm node 3")
-
     sleep(2)
     node0.stop_connection()
     node1.stop_connection()
     node2.stop_connection()
     node3.stop_connection()
 
+
 def message_test():
-    print(node1.construct_message("Hello", "Message", {"receiver" : 3}))
+    print(node1.construct_message("Hello", "Message", {"receiver": 3}))
 
 
 if __name__ == '__main__':
-
     message_test()
-
