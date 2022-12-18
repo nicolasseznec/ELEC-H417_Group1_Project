@@ -41,7 +41,7 @@ class TestNode(unittest.TestCase):
         self.node3.stop_connection()
 
     def message_test(self):
-        message = self.node1.construct_message("Hello", "Message", {"receiver": 3})
+        message = self.node1.construct_message("Hello", "Message", 3)
 
         self.assertEqual(message["data"], "Hello")
         self.assertEqual(message["type"], "Message")
