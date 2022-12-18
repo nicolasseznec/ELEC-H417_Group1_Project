@@ -69,24 +69,13 @@ class Node:
 
         return final_message
         
-    def find_path(self):
+    def generate_path(self):
         n = len(self.listNodes)
-        return_list = []
         if n < 5:
             print("Not enough nodes")
             return
         else:
-            entry_index = randrange(n)
-            middle_index = entry_index
-            while middle_index == entry_index:
-                middle_index = randrange(n)
-            exit_index = entry_index
-            while exit_index == middle_index or exit_index == entry_index:
-                exit_index = randrange(n)
-            return_list.append(self.listNodes[entry_index])
-            return_list.append(self.listNodes[middle_index])
-            return_list.append(self.listNodes[exit_index])
-            return return_list
+            return random.sample(self.listNodes, 3)
 
     def send_message_to(self, data, type, receiver):
         message = self.construct_message(data, type, receiver)
@@ -115,7 +104,7 @@ class Node:
             if not msg["msg_id"] in self.pending_msg:
                 # decryption
                 encrypted_data = msg["data"]
-                decrypted_data = encrypted_data.decrypt(self.key)
+                decrypted_data = rsa.decrypt(encrypted_data.decode('utf-8'), self.keyPrivate)
                 decrypted_msg = json.loads(decrypted_data)
 
                 # Transferring the message
@@ -127,21 +116,14 @@ class Node:
             else:
                 # encryption
                 data = json.dumps(msg)
-                encrypted_data = data.encrypt(self.key)
+                encrypted_data = rsa.encrypt(data.encode('utf-8'), self.keyPublic)
 
                 # Transferring the message
                 receiver = self.pending_msg.get(msg["msg_id"])
-                # Connect to the next node
-                # self.connect_to(receiver)
                 self.send_message_to(encrypted_data, "msg", receiver)
-
-                # Close the other connection
-                # self.close_connection(msg["sender])
 
                 # Remove the message because it is on its way back
                 self.pending_msg.pop(msg["msg_id"])
-
-        # etc
 
     def print_message(self, sender, msg):
         print("Node " + self.id + "received Message from : " + str(sender))
