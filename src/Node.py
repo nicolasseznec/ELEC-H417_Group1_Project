@@ -1,6 +1,8 @@
 import json
 import random
 import time
+import rsa
+from random import randrange
 
 from ConnectionsThread import *
 from src.ConnectionsThread import NodeServerThread
@@ -20,10 +22,11 @@ class Node:
         # Message first sent from this Node
         self.self_messages = {}
 
+        self.keyPublic, self.keyPrivate = rsa.newkeys(512)  # Generate the public and the private key
+        self.listNodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
+
         # (host, port) : connection_thread
         self.connected_nodes = {}
-
-        self.key = None  # To be done
 
         self.connection = NodeServerThread(self)
 
@@ -39,20 +42,56 @@ class Node:
     def broadcast_to_network(self, message):
         self.connection.broadcast_to_network(message)
 
-    def construct_message(self, data, type, overload={}):
-        dico = {"data": data, "type": type, "time": str(time.time()), "sender": self.id, "receiver": None}
+    def construct_message(self, data, type, receiver=None, overload={}):
+        dico = {"data": data, "type": type, "time": str(time.time()), "sender": self.id, "receiver": receiver}
         msg_id = random.randint(0, 100)  # To be determined (not random imo)
         dico["msg_id"] = msg_id
-        # Input can change the values of the dictionnary if necessary
+        # overload can change the values of the dictionnary if necessary
         message = {**dico, **overload}
         return message
 
-    def send_message_to(self, data, type, receiver):
-        overload = {"receiver": receiver}
-        message = self.construct_message(data, type, overload)
+    def encrypt_message(self, msg, path_list):
+        encrypt1 = json.dumps(msg)
+        encrypt1 = rsa.encrypt(encrypt1.encode("utf-8"),
+                               path_list[2][2])  # path_list(2)(2) donne la publicKey de exitNode
+        encrypt2 = self.construct_message(encrypt1, "msg", receiver=(path_list[2][0], path_list[2][1]))
+
+        # (path_list(1)(0),path_list(1)(1)) -> donne un tuple avec address et port du prochain hop
+
+        encrypt2 = json.dumps(encrypt2)
+        encrypt2 = rsa.encrypt(encrypt2.encode("utf-8"), path_list[1][2])
+
+        encrypt3 = self.construct_message(encrypt2, "msg", receiver=(path_list[1][0], path_list[1][1]))
+        encrypt3 = json.dumps(encrypt3)
+        encrypt3 = rsa.encrypt(encrypt3.encode("utf-8"), path_list(0)(2))
+
+        final_message = self.construct_message(encrypt3, "msg", (path_list[0][0], path_list[0][1]))
+
+        return final_message
+        
+    def find_path(self):
+        n = len(self.listNodes)
+        return_list = []
+        if n < 5:
+            print("Not enough nodes")
+            return
+        else:
+            entry_index = randrange(n)
+            middle_index = entry_index
+            while middle_index == entry_index:
+                middle_index = randrange(n)
+            exit_index = entry_index
+            while exit_index == middle_index or exit_index == entry_index:
+                exit_index = randrange(n)
+            return_list.append(self.listNodes[entry_index])
+            return_list.append(self.listNodes[middle_index])
+            return_list.append(self.listNodes[exit_index])
+            return return_list
+
+def send_message_to(self, data, type, receiver):
+        message = self.construct_message(data, type, receiver)
 
         connection = self.connected_nodes[(receiver[0], receiver[1])]
-
         dumped_message = json.dumps(message)
         connection.send(dumped_message)
 
