@@ -103,9 +103,9 @@ class NodeServerThread(threading.Thread):
 
     def connect_to(self, host, port):
         for node in self.connected_nodes:
-            if node.port == port:
+            if (node.host, node.port) in self.node.connected_nodes:
                 # already connected
-                return True
+                return self.node.connected_nodes[(node.host, node.port)]
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((host, port))

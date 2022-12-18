@@ -51,10 +51,7 @@ class Node:
         overload = {"receiver": receiver}
         message = self.construct_message(data, type, overload)
 
-        if receiver not in self.connected_nodes:
-            connection = self.connect_to(receiver[0], receiver[1])
-        else:
-            connection = self.connected_nodes[(receiver[0], receiver[1])]
+        connection = self.connected_nodes[(receiver[0], receiver[1])]
 
         dumped_message = json.dumps(message)
         connection.send(dumped_message)
