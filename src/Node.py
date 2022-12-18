@@ -52,8 +52,7 @@ class Node:
 
     def encrypt_message(self, msg, path_list):
         encrypt1 = json.dumps(msg)
-        encrypt1 = rsa.encrypt(encrypt1.encode("utf-8"),
-                               path_list[2][2])  # path_list(2)(2) donne la publicKey de exitNode
+        encrypt1 = rsa.encrypt(encrypt1.encode("utf-8"), path_list[2][2])  # path_list(2)(2) donne la publicKey de exitNode
         encrypt2 = self.construct_message(encrypt1, "msg", receiver=(path_list[2][0], path_list[2][1]))
 
         # (path_list(1)(0),path_list(1)(1)) -> donne un tuple avec address et port du prochain hop
