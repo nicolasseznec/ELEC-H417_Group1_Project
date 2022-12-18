@@ -21,7 +21,7 @@ class Node:
         # Message first sent from this Node
         self.self_messages = {}
 
-        self.key = None #To be done
+        self.key = None  # To be done
 
         self.connection = NodeServerThread(self)
 
@@ -39,7 +39,7 @@ class Node:
 
     def construct_message(self, data, type, overload={}):
         dico = {"data": data, "type": type, "time": str(time.time()), "sender": self.id, "receiver": None}
-        msg_id = random.randint(0, 100) #To be determined (not random imo)
+        msg_id = random.randint(0, 100)  # To be determined (not random imo)
         dico["msg_id"] = msg_id
         # Input can change the values of the dictionnary if necessary
         message = {**dico, **overload}
@@ -81,6 +81,10 @@ class Node:
                 decrypted_data = encrypted_data.decrypt(self.key)
                 decrypted_msg = json.loads(decrypted_data)
 
+                # Create  a connection with the destination
+                # if not already connected to this node
+                #     self.connect_to("msg["receiver]")
+
                 # Transferring the message
                 self.send_message_to(decrypted_msg["data"], "msg", decrypted_msg["receiver"])
 
@@ -88,7 +92,7 @@ class Node:
                 self.pending_msg[msg["msg_id"]] = msg["sender"]
 
             else:
-                #encryption
+                # encryption
                 data = json.dumps(msg)
                 encrypted_data = data.encrypt(self.key)
 
@@ -96,15 +100,17 @@ class Node:
                 receiver = self.pending_msg.get(msg["msg_id"])
                 self.send_message_to(encrypted_data, "msg", receiver)
 
+                # Close the connection
+                # if no other communication with this Node:
+                #     self.close_connection(msg["sender])
+
                 # Remove the message because it is on its way back
                 self.pending_msg.pop(msg["msg_id"])
 
         # etc
 
-
-
     def print_message(self, sender, msg):
-        print("Message received from : " + str(sender))
+        print("Node " + self.id + "received Message from : " + str(sender))
         print("Content : " + msg)
 
     def handle_response(self, msg):
