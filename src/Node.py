@@ -88,10 +88,10 @@ class Node:
             return_list.append(self.listNodes[exit_index])
             return return_list
 
-def send_message_to(self, data, type, receiver):
+    def send_message_to(self, data, type, receiver):
         message = self.construct_message(data, type, receiver)
 
-        connection = self.connected_nodes[(receiver[0], receiver[1])]
+        connection = self.connected_nodes[receiver]
         dumped_message = json.dumps(message)
         connection.send(dumped_message)
 
