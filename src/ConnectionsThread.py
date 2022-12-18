@@ -6,7 +6,7 @@ import socket
 
 
 class ConnectionThread(threading.Thread):
-    def __init__(self, node, sock):
+    def __init__(self, node, sock, client_address):
         super().__init__()
         self.node = node
         self.sock = sock
@@ -15,6 +15,7 @@ class ConnectionThread(threading.Thread):
         self.host = node.host
         self.port = node.port
 
+        self.client_address = client_address
         self.flag = threading.Event()
 
     def run(self):
@@ -23,10 +24,11 @@ class ConnectionThread(threading.Thread):
             try:
                 data = self.sock.recv(4096)
                 msg = data.decode()
+                # print(msg)
                 self.node.data_handler(msg)
 
             except socket.timeout:
-                pass
+                self.flag.set()
 
             except Exception as e:
                 self.flag.set()
@@ -35,10 +37,12 @@ class ConnectionThread(threading.Thread):
             sleep(0.01)
         self.sock.settimeout(None)
         self.sock.close()
+        self.node.connected_nodes.pop(self.client_address)
         sleep(1)
 
     def send(self, data):
         self.sock.sendall(data.encode("utf-8"))
+        self.node.connected_nodes.pop(self.client_address)
 
     def stop(self):
         self.flag.set()
@@ -75,10 +79,11 @@ class NodeServerThread(threading.Thread):
                 connection.send(str(self.id).encode("utf-8"))
 
                 if self.id != connected_node_id:
-                    thread_client = self.create_connection(connection)
+                    thread_client = self.create_connection(connection, client_address)
                     thread_client.start()
 
                     self.connected_nodes.append(thread_client)
+                    self.node.connected_nodes[client_address] = thread_client
                 else:
                     connection.close()
 
@@ -109,10 +114,11 @@ class NodeServerThread(threading.Thread):
         connected_node_id = sock.recv(1024).decode("utf-8")
         print("connected with node: ", connected_node_id)
 
-        thread_client = self.create_connection(sock)
+        thread_client = self.create_connection(sock, (host, port))
 
         self.connected_nodes.append(thread_client)
-
+        self.node.connected_nodes[(host, port)] = thread_client
+        return thread_client
 
     def broadcast_to_network(self, message):
         for node in self.connected_nodes:
@@ -121,5 +127,5 @@ class NodeServerThread(threading.Thread):
     def stop(self):
         self.flag.set()
 
-    def create_connection(self, sock):
-        return ConnectionThread(self.node, sock)
+    def create_connection(self, sock, client_address):
+        return ConnectionThread(self.node, sock, client_address)
