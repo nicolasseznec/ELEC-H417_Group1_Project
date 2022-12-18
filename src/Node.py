@@ -14,10 +14,9 @@ class Node:
         self.port = port
         self.id = index
 
-        self.peers = []
         self.msg_storage = {}
 
-        # Pending messages with a list of Msg_id : Sender
+        # Pending messages with a list of Msg_id : (sender_host, sender_port)
         self.pending_msg = {}
 
         # Message first sent from this Node
@@ -25,6 +24,9 @@ class Node:
 
         self.keyPublic, self.keyPrivate = rsa.newkeys(512)  # Generate the public and the private key
         self.listNodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
+
+        # (host, port) : connection_thread
+        self.connected_nodes = {}
 
         self.connection = NodeServerThread(self)
 
@@ -35,7 +37,7 @@ class Node:
         self.connection.stop()
 
     def connect_to(self, host, port):
-        self.connection.connect_to(host, port)
+        return self.connection.connect_to(host, port)
 
     def broadcast_to_network(self, message):
         self.connection.broadcast_to_network(message)
@@ -66,13 +68,7 @@ class Node:
         final_message = self.construct_message(encrypt3, "msg", (path_list[0][0], path_list[0][1]))
 
         return final_message
-
-    def send_message_to(self, data, type, receiver):
-        # if receiver :
-        #     data.encrypt(receiver.key)        // Example
-        message = self.construct_message(data, type, receiver)
-        self.broadcast_to_network(message)
-
+        
     def find_path(self):
         n = len(self.listNodes)
         return_list = []
@@ -92,12 +88,12 @@ class Node:
             return_list.append(self.listNodes[exit_index])
             return return_list
 
-    # def broadcast_peers_list(self):
-    #     """
-    #     Brodcast peers connected to the network (+public key?)
-    #     """
-    #     message = self.construct_message(self.peers, "peers")
-    #     self.broadcast_to_network(message)
+def send_message_to(self, data, type, receiver):
+        message = self.construct_message(data, type, receiver)
+
+        connection = self.connected_nodes[(receiver[0], receiver[1])]
+        dumped_message = json.dumps(message)
+        connection.send(dumped_message)
 
     def data_handler(self, data):
         """
@@ -106,7 +102,8 @@ class Node:
         else -> manage the data by transferring etc...
         """
         msg = json.loads(data)
-        if msg["receiver"] != self.id:
+        if msg["receiver"][0] != self.host or msg["receiver"][1] != self.port:
+            # wrong address
             return
 
         if msg["type"] == "msg":
@@ -121,10 +118,6 @@ class Node:
                 decrypted_data = encrypted_data.decrypt(self.key)
                 decrypted_msg = json.loads(decrypted_data)
 
-                # Create  a connection with the destination
-                # if not already connected to this node
-                #     self.connect_to("msg["receiver]")
-
                 # Transferring the message
                 self.send_message_to(decrypted_msg["data"], "msg", decrypted_msg["receiver"])
 
@@ -138,11 +131,12 @@ class Node:
 
                 # Transferring the message
                 receiver = self.pending_msg.get(msg["msg_id"])
+                # Connect to the next node
+                # self.connect_to(receiver)
                 self.send_message_to(encrypted_data, "msg", receiver)
 
-                # Close the connection
-                # if no other communication with this Node:
-                #     self.close_connection(msg["sender])
+                # Close the other connection
+                # self.close_connection(msg["sender])
 
                 # Remove the message because it is on its way back
                 self.pending_msg.pop(msg["msg_id"])
