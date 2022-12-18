@@ -4,6 +4,8 @@ import time
 from random import randrange
 
 from NodeServerThread import *
+from utils import *
+from Diffie_Hellmann import *
 
 
 class Node:
@@ -12,8 +14,13 @@ class Node:
         self.port = port
         self.id = index
 
+        self.public_key = None  # TODO ('common paint')
+
         # Pending messages with a list of Msg_id : (sender_host, sender_port)
         self.pending_msg = {}
+
+        # Pending key lists of the diffie hellman exchange
+        self.pending_key_list = {}
 
         # Message first sent from this Node
         self.self_messages = {}
@@ -38,9 +45,9 @@ class Node:
         self.connection.broadcast_to_network(message)
 
     def construct_message(self, data, type, receiver=None, overload={}):
-        dico = {"data": data, "type": type, "time": str(time.time()), "sender": self.id, "receiver": receiver}
-        msg_id = random.randint(0, 100)  # To be determined (not random imo)
-        dico["msg_id"] = msg_id
+        dico = {"data": data, "type": type, "time": str(time.time()), "sender": (self.host, self.port),
+                "receiver": receiver}
+
         # overload can change the values of the dictionnary if necessary
         message = {**dico, **overload}
         return message
@@ -97,6 +104,47 @@ class Node:
     def print_message(self, sender, msg):
         print("Node " + self.id + "received Message from : " + str(sender))
         print("Content : " + msg)
+
+
+    def launch_key_exchange(self, hop_list):
+        """
+        Diffie Hellmann exchange
+        To be continued...............
+        """
+        key_list = []
+        for hop in hop_list:
+            message = self.construct_message(self.public_key, "key", hop)
+            for j in reversed(range(len(key_list))):
+                # Onion pack it
+                tmp_hop_list = hop_list[:len(key_list)]
+                encryption = encrypt(message, key_list[j])
+                message = self.construct_message(encryption, "msg", tmp_hop_list[j])
+
+            id = random.randint(0, 100)
+            self.pending_key_list[id] = key_list
+            # Waiting thread
+            dh_thread = Diffie_Hellmann(id, self)
+            self.send_message_to(message, "msg", hop_list[0])
+        return key_list
+
+    def message_tor_send(self, host, port, msg):
+        """
+        Onion packs a message and sends it
+        """
+        node_list = self.generate_path()
+
+        key_list = self.launch_key_exchange(node_list)
+
+        message = self.construct_message(msg, "msg", (host, port))
+
+        for i in reversed(range(len(node_list))):
+            encryption = encrypt(message, key_list[i])
+            msg_id = random.randint(0, 100)         # TO be discussed
+            overload = {"msg_id": msg_id}
+            message = self.construct_message(encryption, "msg", node_list[i], overload)
+
+        self.send_message_to(message, key_list[0], node_list[0])
+
 
     def handle_response(self, msg):
         """
