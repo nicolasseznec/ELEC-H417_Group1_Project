@@ -22,6 +22,17 @@ def main():
     # decrypt layers
     pass
 
+    node0 = Node(LOCALHOST, 1000, 0)
+    node1 = Node(LOCALHOST, 1010, 1)
+    node0.start_connection()
+    node1.start_connection()
+
+    node0.connect_to(LOCALHOST, 1010)
+    node0.send_message_to("Hello", "msg", (LOCALHOST, 1010))
+
+    node0.stop_connection()
+    node1.stop_connection()
+
 
 if __name__ == '__main__':
     main()

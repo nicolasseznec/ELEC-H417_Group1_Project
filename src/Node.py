@@ -1,7 +1,6 @@
 import json
 import random
 import time
-from random import randrange
 
 from NodeServerThread import *
 
@@ -18,48 +17,51 @@ class Node:
         # Message first sent from this Node
         self.self_messages = {}
 
-        self.available_nodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
+        self.active_nodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
 
-        # (host, port) : connection_thread
-        self.connected_nodes = {}
-
-        self.connection = NodeServerThread(self)
+        self.node_server = NodeServerThread(self)
+        # TODO : start connection
 
     def start_connection(self):
-        self.connection.start()
+        self.node_server.start()
 
     def stop_connection(self):
-        self.connection.stop()
+        self.node_server.stop()
 
-    def connect_to(self, host, port):
-        return self.connection.connect_to(host, port)
+    def connect_to(self, host, port):  # TODO : take address
+        return self.node_server.connect_to(host, port)
 
     def broadcast_to_network(self, message):
-        self.connection.broadcast_to_network(message)
+        self.node_server.broadcast_to_network(message)
 
-    def construct_message(self, data, type, receiver=None, overload={}):
-        dico = {"data": data, "type": type, "time": str(time.time()), "sender": self.id, "receiver": receiver}
+    def construct_message(self, data, msg_type, receiver=None, overload=None):
+        if overload is None:
+            overload = {}
+        dico = {"data": data, "type": msg_type, "time": str(time.time()), "sender": self.id, "receiver": receiver}
         msg_id = random.randint(0, 100)  # To be determined (not random imo)
         dico["msg_id"] = msg_id
+
         # overload can change the values of the dictionnary if necessary
-        message = {**dico, **overload}
-        return message
+        return {**dico, **overload}
 
     def generate_path(self):
-        n = len(self.available_nodes)
+        n = len(self.active_nodes)
         if n < 5:
             print("Not enough nodes")
             return
         else:
-            return random.sample(self.available_nodes, 3)
+            return random.sample(self.active_nodes, 3)
 
-    def send_message_to(self, data, type, receiver):
-        message = self.construct_message(data, type, receiver)
-
-        connection = self.connected_nodes[receiver]
+    def send_message_to(self, data, msg_type, receiver):
+        message = self.construct_message(data, msg_type, receiver)
         dumped_message = json.dumps(message)
+
+        if receiver not in self.node_server.connection_threads:
+            self.connect_to(receiver[0], receiver[1])
+
+        connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
-        self.connected_nodes.pop(receiver)
+        self.node_server.connection_threads.pop(receiver)
 
     def data_handler(self, data):
         """

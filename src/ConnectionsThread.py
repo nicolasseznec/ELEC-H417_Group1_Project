@@ -2,15 +2,14 @@ import threading
 import socket
 from time import sleep
 
+from constants import ENCODING
+
 
 class ConnectionThread(threading.Thread):
     def __init__(self, node, sock, client_address):
         super().__init__()
 
         self.node = node
-        self.id = node.id
-        self.host = node.host
-        self.port = node.port
 
         self.sock = sock
         self.client_address = client_address
@@ -23,6 +22,7 @@ class ConnectionThread(threading.Thread):
             try:
                 data = self.sock.recv(4096)
                 msg = data.decode()
+                # TODO : Lock and Release node?
                 self.node.data_handler(msg)
 
             except socket.timeout:
@@ -36,11 +36,10 @@ class ConnectionThread(threading.Thread):
 
         self.sock.settimeout(None)
         self.sock.close()
-        self.node.connected_nodes.pop(self.client_address)
-        # sleep(1)
+        self.node.node_server.connection_threads.pop(self.client_address)
 
     def send(self, data):
-        self.sock.sendall(data.encode("utf-8"))
+        self.sock.sendall(data.encode(ENCODING))
 
     def stop(self):
         self.flag.set()

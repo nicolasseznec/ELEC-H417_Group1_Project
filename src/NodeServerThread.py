@@ -1,4 +1,5 @@
 from ConnectionsThread import *
+from constants import ENCODING
 
 
 class NodeServerThread(threading.Thread):
@@ -9,7 +10,8 @@ class NodeServerThread(threading.Thread):
         self.port = node.port
         self.host = node.host
         self.id = node.id
-        self.connection_threads = []
+
+        self.connection_threads = {}
 
         self.flag = threading.Event()
 
@@ -17,7 +19,7 @@ class NodeServerThread(threading.Thread):
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         print("Node " + str(self.id) + " starting on port " + str(self.port))
         self.sock.bind((self.host, self.port))
-        self.sock.settimeout(1.0)
+        self.sock.settimeout(10.0)
         self.sock.listen(1)
 
     def run(self):
@@ -25,17 +27,17 @@ class NodeServerThread(threading.Thread):
             try:
                 # client_address = (host, port)
                 client_sock, client_address = self.sock.accept()
-
+                print(f"{self.id} accpeted {client_address}")
                 # get the id of the other node
-                connected_node_id = client_sock.recv(2048).decode("utf-8")
-                client_sock.send(str(self.id).encode("utf-8"))
+                connected_node_id = client_sock.recv(2048).decode(ENCODING)  # 1024 ?
+                print(f"received {connected_node_id}")
+                client_sock.send(str(self.id).encode(ENCODING))
 
                 if self.id != connected_node_id:
                     client_thread = self.create_connection(client_sock, client_address)
                     client_thread.start()
 
-                    self.connection_threads.append(client_thread)
-                    self.node.connected_nodes[client_address] = client_thread
+                    self.connection_threads[client_address] = client_thread
                 else:
                     client_sock.close()
 
@@ -47,33 +49,34 @@ class NodeServerThread(threading.Thread):
 
             sleep(0.01)
 
-        for connection in self.connection_threads:
+        for connection in self.connection_threads.values():
             connection.stop()
 
         self.sock.close()
         print("Node " + str(self.id) + " stopped")
 
     def connect_to(self, host, port):
-        for connection in self.connection_threads:
-            if (connection.host, connection.port) in self.node.connected_nodes:
-                # already connected
-                return self.node.connected_nodes[(connection.host, connection.port)]
+        address = (host, port)
+        print(address)
+        if address in self.connection_threads:
+            # already connected
+            return self.node.connected_nodes[address]
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((host, port))
+        sock.connect(address)
 
-        sock.send(str(self.id).encode("utf-8"))
-        connected_node_id = sock.recv(1024).decode("utf-8")
+        sock.send(str(self.id).encode(ENCODING))
+        print(f"sent {self.id}")
+        connected_node_id = sock.recv(1024).decode(ENCODING)
         print("connected with node: ", connected_node_id)
 
-        thread_client = self.create_connection(sock, (host, port))
+        thread_client = self.create_connection(sock, address)
 
-        self.connection_threads.append(thread_client)
-        self.node.connected_nodes[(host, port)] = thread_client
+        self.connection_threads[address] = thread_client
         return thread_client
 
     def broadcast_to_network(self, message):
-        for node in self.connection_threads:
+        for node in self.connection_threads.values():
             node.send(message)
 
     def create_connection(self, sock, client_address):
