@@ -1,4 +1,7 @@
+from queue import Queue
+
 from ConnectionsThread import *
+from constants import ENCODING
 
 
 class NodeServerThread(threading.Thread):
@@ -9,8 +12,9 @@ class NodeServerThread(threading.Thread):
         self.port = node.port
         self.host = node.host
         self.id = node.id
-        self.connection_threads = []
 
+        self.connection_threads = {}
+        self.diconnections = Queue()
         self.flag = threading.Event()
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -23,21 +27,13 @@ class NodeServerThread(threading.Thread):
     def run(self):
         while not self.flag.is_set():
             try:
-                # client_address = (host, port)
                 client_sock, client_address = self.sock.accept()
+                self.handle_connection(client_sock, client_address)
 
-                # get the id of the other node
-                connected_node_id = client_sock.recv(2048).decode("utf-8")
-                client_sock.send(str(self.id).encode("utf-8"))
-
-                if self.id != connected_node_id:
-                    client_thread = self.create_connection(client_sock, client_address)
-                    client_thread.start()
-
-                    self.connection_threads.append(client_thread)
-                    self.node.connected_nodes[client_address] = client_thread
-                else:
-                    client_sock.close()
+                while not self.diconnections.empty():
+                    address = self.diconnections.get()
+                    self.connection_threads.pop(address)
+                    print(f"disonnected : {address}")
 
             except socket.timeout:
                 pass
@@ -45,39 +41,52 @@ class NodeServerThread(threading.Thread):
             except Exception as e:
                 raise e
 
-            sleep(0.01)
-
-        for connection in self.connection_threads:
+        for connection in self.connection_threads.values():
             connection.stop()
 
         self.sock.close()
         print("Node " + str(self.id) + " stopped")
 
+    def handle_connection(self, connection, address):
+        # print(f"{self.id} accepted {address}")
+
+        # Exchange IDs
+        connected_node_id = connection.recv(2048).decode(ENCODING)
+        # print(f"received {connected_node_id}")
+        connection.send(str(self.id).encode(ENCODING))
+
+        if self.id != connected_node_id:
+            client_thread = self.create_connection(connection, address)
+            client_thread.start()
+
+            self.connection_threads[address] = client_thread
+        else:
+            connection.close()
+
     def connect_to(self, host, port):
-        for connection in self.connection_threads:
-            if (connection.host, connection.port) in self.node.connected_nodes:
-                # already connected
-                return self.node.connected_nodes[(connection.host, connection.port)]
+        address = (host, port)
+        if address in self.connection_threads:
+            # already connected
+            return self.node.connected_nodes[address]
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((host, port))
+        sock.connect(address)
 
-        sock.send(str(self.id).encode("utf-8"))
-        connected_node_id = sock.recv(1024).decode("utf-8")
-        print("connected with node: ", connected_node_id)
+        sock.send(str(self.id).encode(ENCODING))
+        connected_node_id = sock.recv(1024).decode(ENCODING)
+        print(f"Node {self.id} connected with node: {connected_node_id}")
 
-        thread_client = self.create_connection(sock, (host, port))
+        thread_client = self.create_connection(sock, address)
 
-        self.connection_threads.append(thread_client)
-        self.node.connected_nodes[(host, port)] = thread_client
+        self.connection_threads[address] = thread_client
         return thread_client
 
     def broadcast_to_network(self, message):
-        for node in self.connection_threads:
+        for node in self.connection_threads.values():
             node.send(message)
 
     def create_connection(self, sock, client_address):
-        return ConnectionThread(self.node, sock, client_address)
+        return ConnectionThread(self.node.message_queue, self.diconnections, sock, client_address)
 
     def stop(self):
         self.flag.set()

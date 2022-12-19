@@ -1,7 +1,6 @@
 import json
 import random
 import time
-from random import randrange
 
 from NodeServerThread import *
 from utils import *
@@ -26,26 +25,30 @@ class Node:
         # Message first sent from this Node
         self.self_messages = {}
 
-        self.available_nodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
+        self.active_nodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
 
-        # (host, port) : connection_thread
-        self.connected_nodes = {}
+        self.message_queue = Queue()
+        self.stop_flag = threading.Event()
+        self.node_server = NodeServerThread(self)
 
-        self.connection = NodeServerThread(self)
-
-    def start_connection(self):
-        self.connection.start()
+        self.node_server.start()
+        threading.Thread(target=self.handle_messages).start()
+        threading.Thread(target=self.handle_user_input).start()
 
     def stop_connection(self):
-        self.connection.stop()
+        self.node_server.stop()
+        self.stop_flag.set()
 
-    def connect_to(self, host, port):
-        return self.connection.connect_to(host, port)
+    def connect_to(self, host, port):  # TODO : take address
+        return self.node_server.connect_to(host, port)
 
     def broadcast_to_network(self, message):
-        self.connection.broadcast_to_network(message)
+        self.node_server.broadcast_to_network(message)
 
-    def construct_message(self, data, type, receiver=None, id=None, sender=None, overload={}):
+
+    def construct_message(self, data, type, receiver=None, id=None, sender=None, overload=None):
+        if overload is None:
+            overload = {}
         dico = {"type": type, "time": str(time.time()), "receiver": receiver}
         if id is not None:
             dico["msg_id"] = id
@@ -57,26 +60,50 @@ class Node:
             dico["sender"] = (self.host, self.port)
         dico["data"] = data
         # overload can change the values of the dictionnary if necessary
-        message = {**dico, **overload}
-        return message
+        return {**dico, **overload}
 
     def generate_path(self):
-        n = len(self.available_nodes)
+        n = len(self.active_nodes)
         if n < 5:
             print("Not enough nodes")
             return
         else:
-            return random.sample(self.available_nodes, 3)
+            return random.sample(self.active_nodes, 3)
 
-    def send_message_to(self, data, type, receiver):
-        message = self.construct_message(data, type, receiver)
-
-        connection = self.connect_to(receiver[0], receiver[1])
+    def send_message_to(self, data, msg_type, receiver):
+        message = self.construct_message(data, msg_type, receiver)
         dumped_message = json.dumps(message)
+
+        if receiver not in self.node_server.connection_threads:
+            self.connect_to(receiver[0], receiver[1])
+
+        connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
-        self.connected_nodes.pop(receiver)
+        self.node_server.connection_threads.pop(receiver)
+
+    def handle_user_input(self):
+        """
+        Handle user input commands.
+        """
+        pass
+
+    def handle_messages(self):
+        """
+        Handle any message received by one of the connection threads.
+        """
+        while not self.stop_flag.is_set():
+            try:
+                while not self.message_queue.empty():
+                    msg = self.message_queue.get()
+                    if msg:
+                        self.data_handler(msg)
+
+            except Exception as e:
+                self.stop_connection()
+                raise e
 
     def send_message(self, msg):
+        # TODO refactor
         receiver = msg["receiver"]
         if msg["sender"][0] != self.host or msg["sender"][1] != self.port:
             print("Not the right sender")
@@ -94,7 +121,6 @@ class Node:
         msg = str_to_dict(data)
         if msg["receiver"][0] != self.host or msg["receiver"][1] != self.port:
             # wrong address
-            print("wrong address")
             return
 
         msg_type = msg["type"]
@@ -197,11 +223,6 @@ class Node:
         Final decryption of the response
         """
         pass
-
-    def send_test(self, msg, hop_list):
-        message = self.construct_message("Hello", "request", receiver="http://etc", sender=hop_list[2])
-        message = self.onion_pack(hop_list, [1, 2, 3], message)
-        self.send_message(message)
 
     def handle_request(self, decrypted_data):
         """
