@@ -13,6 +13,6 @@ class WaitingThread(threading.Thread):
 
     def run(self):
         while not self.flag.is_set():
-            if len(self.node.key_list[id]) > self.starting_point:
+            if len(self.node.pending_key_list[self.id]) > self.starting_point:
                 self.flag.set()
             sleep(0.1)

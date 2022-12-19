@@ -1,7 +1,9 @@
 import hashlib
 import json
 import math
+import pickle
 import random
+from base64 import b64encode, b64decode
 
 from Crypto.Cipher import AES
 from Crypto.Util import Padding
@@ -29,9 +31,10 @@ def generate_shared_keys(private_key, public_key):
 
 
 def encrypt_cbc(key, plaintext):
-    if type(plaintext) == "dict":
-        plaintext = json.dumps(plaintext)
-    pt_byte = plaintext.encode('utf-8')
+    # if type(plaintext) is dict:
+    #     print(plaintext)
+    #     plaintext = pickle.dumps(plaintext)
+    pt_byte = pickle.dumps(plaintext)
 
     # Create the cipher object and set the mode to ECB
     cipher = AES.new(key, AES.MODE_ECB)
@@ -39,15 +42,18 @@ def encrypt_cbc(key, plaintext):
     # Pad the plaintext to a multiple of the block size (16 bytes)
     padded_plaintext = Padding.pad(pt_byte, 16)
     ciphertext = cipher.encrypt(padded_plaintext)
-    return ciphertext
+    result = b64encode(ciphertext)
+    return result
 
 
 def decrypt_cbc(key, ciphertext):
     # Create the cipher object and set the mode to ECB
     cipher = AES.new(key, AES.MODE_ECB)
+    ciphertext = b64decode(ciphertext)
     decrypted_text = cipher.decrypt(ciphertext)
     unpadded_text = Padding.unpad(decrypted_text, 16)
-    result = unpadded_text.decode('utf-8')
+    # result = unpadded_text.decode('utf-8')
+    result = pickle.loads(unpadded_text)
     return result
 
 # a, A = generate_self_keys()
@@ -57,3 +63,4 @@ def decrypt_cbc(key, ciphertext):
 # cipher = encrypt_cbc(key, "Hello guys")
 # print(cipher)
 # print(decrypt_cbc(key, cipher))
+

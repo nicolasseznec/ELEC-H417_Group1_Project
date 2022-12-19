@@ -1,4 +1,5 @@
 import json
+import pickle
 import random
 import time
 import uuid
@@ -106,23 +107,29 @@ class Node:
 
     def send_message(self, msg):
         # TODO refactor with the connected node list
-        receiver = msg["receiver"]
+        receiver = (msg["receiver"][0], msg["receiver"][1])
         if msg["sender"][0] != self.host or msg["sender"][1] != self.port:
             print("Not the right sender")
-            print(str(self.port) + "   " + str(msg["sender"][1]))
-        connection = self.connect_to(receiver[0], receiver[1])
-        dumped_message = json.dumps(msg)
-        connection.send(dumped_message)
 
-    def data_handler(self, data):
+        if receiver not in self.node_server.connection_threads:
+            self.connect_to(receiver[0], receiver[1])
+
+        dumped_message = pickle.dumps(msg)
+        connection = self.node_server.connection_threads[receiver]
+        connection.send(dumped_message)
+        self.node_server.connection_threads.pop(receiver)
+
+    def data_handler(self, msg):
         """
         Receive a message in input,
         if it is not the receiver -> return
         else -> manage the data by transferring etc...
         """
-        msg = str_to_dict(data)
+        # msg = str_to_dict(data)
+        # print("Node " + str(self.id) + " received : " + str(msg))
         if msg["receiver"][0] != self.host or msg["receiver"][1] != self.port:
             # wrong address
+            print("wrong addr")
             return
 
         msg_type = msg["type"]
@@ -139,35 +146,50 @@ class Node:
                 # Last point on the way back
                 self.handle_response(msg)
                 return
+            if msg["msg_id"] in self.pending_key_list:
+                encrypted_data = msg["data"]
+                decrypted_data = msg["data"]
+                for i in range(len(self.pending_key_list[msg["msg_id"]])):
+                    decrypted_data = decrypt_cbc(self.pending_key_list[msg["msg_id"]][i], encrypted_data)
+                    encrypted_data = pickle.loads(decrypted_data)
+                    if type(encrypted_data) is dict:
+                        encrypted_data = encrypted_data["data"]
+                        decrypted_data = encrypted_data
+                self.pending_key_list[msg["msg_id"]].append(decrypted_data)  # Getting the public key back
+                return
 
             # TODO : use an encryption/decryption module
-            if not msg["msg_id"] in self.pending_msg:   # decryption
+            line = (msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
+            if line not in self.table.transfer_table:
+                # Decrypt
                 encrypted_data = msg["data"]
-                print("Node " + str(self.id) + " : " + str(encrypted_data))
 
                 key = self.table.get_key(msg["msg_id"], msg["sender"])
                 if key is not None:
                     decrypted_data = decrypt_cbc(key, encrypted_data)
-                    decrypted_data = str_to_dict(decrypted_data)
-                    if decrypted_data is None:  # Not a dict
-                        return
+                    # decrypted_data = str_to_dict(decrypted_data)
+                    # if decrypted_data is None:  # Not a dict
+                    #     return
                 else:
                     return
-                if decrypted_data["type"] == "request":
+                typed = decrypted_data["type"]
+                # Add the transfer in the table
+                self.table.new_transfer(msg["msg_id"], (msg["sender"][0], msg["sender"][1]),
+                                        decrypted_data["msg_id"], (decrypted_data["receiver"][0], decrypted_data["receiver"][1]))
+                if typed == "request":
                     self.handle_request(decrypted_data["data"])
-                if decrypted_data["type"] == "msg":
+                if typed == "msg" or typed == "key":
                     self.send_message(decrypted_data)
 
             else:
                 # encryption
-                data = json.dumps(msg)
-                # encrypted_data = rsa.encrypt(data.encode('utf-8'), self.keyPublic)
+                data = pickle.dumps(msg)
+                key = self.table.get_key(msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
+                encrypted_data = encrypt_cbc(key, data)
                 # Transferring the message
-                # receiver = self.pending_msg.get(msg["msg_id"])
-                # self.send_message_to(encrypted_data, "msg", receiver)
-
-                # Remove the message because it is on its way back
-                # self.pending_msg.pop(msg["msg_id"])
+                msg_id, receiver = self.table.get_transfer(msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
+                message = self.construct_message(encrypted_data, "msg", receiver, msg_id)
+                self.send_message(message)
 
     def print_message(self, sender, msg):
         print("Node " + self.id + "received Message from : " + str(sender))
@@ -180,11 +202,15 @@ class Node:
         """
         key_list = []
         for hop in hop_list:
+            i = len(key_list)
+            if i == 0:
+                sender = None
+            else:
+                sender = hop_list[i - 1]
             id = id_list[0]
             private_key, public_key = generate_self_keys()
-            message = self.construct_message(public_key, "key", hop)
-            message = self.onion_pack(hop_list[:len(key_list)], key_list, id_list, message)
-
+            message = self.construct_message(public_key, "key", hop, id_list[i], sender)
+            message = self.onion_pack(hop_list[:len(key_list) + 1], key_list, id_list, message)
             self.pending_key_list[id] = key_list
             # Waiting thread
             dh_thread = WaitingThread(id, self)
@@ -212,11 +238,12 @@ class Node:
         Packs the root_message in an onion
         """
         message = root_message
-        if len(hop_list) != len(key_list):
-            return
+        # if len(hop_list) != len(key_list):
+        #     print("jsj")
+        #     return
 
-        for i in reversed(range(len(hop_list))):
-            encryption = encrypt(message, key_list[i])
+        for i in reversed(range(len(key_list))):
+            encryption = encrypt_cbc(key_list[i], message)
             msg_id = id_list[i]
             if i != 0:
                 sender = hop_list[i - 1]
@@ -244,6 +271,6 @@ class Node:
         """
         private_key, public_key = generate_self_keys()
         shared_keys = generate_shared_keys(private_key, msg["data"])
-        self.table.new_key(msg["msg_id"], msg["sender"], shared_keys)
-        reply = self.construct_message(public_key, "key", msg["sender"], msg["msg_id"])
+        self.table.new_key(msg["msg_id"], (msg["sender"][0], msg["sender"][1]), shared_keys)
+        reply = self.construct_message(public_key, "msg", msg["sender"], msg["msg_id"])
         self.send_message(reply)

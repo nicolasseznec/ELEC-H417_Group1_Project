@@ -41,7 +41,7 @@ class Table:
 
     def get_transfer(self, id, addr):
         if (id, addr) in self.transfer_table:
-            return self.transfer_table[(id, addr)]
+            return self.transfer_table[(id, addr)][0], self.transfer_table[(id, addr)][1]
         else:
             return None
 
