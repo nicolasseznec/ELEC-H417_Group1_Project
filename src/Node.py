@@ -1,11 +1,8 @@
 import json
 import random
 import time
-import rsa
-from random import randrange
 
-from ConnectionsThread import *
-from src.ConnectionsThread import NodeServerThread
+from NodeServerThread import *
 
 
 class Node:
@@ -14,74 +11,84 @@ class Node:
         self.port = port
         self.id = index
 
-        self.msg_storage = {}
-
         # Pending messages with a list of Msg_id : (sender_host, sender_port)
         self.pending_msg = {}
 
         # Message first sent from this Node
         self.self_messages = {}
 
-        self.keyPublic, self.keyPrivate = rsa.newkeys(512)  # Generate the public and the private key
-        self.listNodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
+        self.active_nodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
 
-        # (host, port) : connection_thread
-        self.connected_nodes = {}
+        self.message_queue = Queue()
+        self.stop_flag = threading.Event()
+        self.node_server = NodeServerThread(self)
 
-        self.connection = NodeServerThread(self)
-
-    def start_connection(self):
-        self.connection.start()
+        self.node_server.start()
+        threading.Thread(target=self.handle_messages).start()
+        threading.Thread(target=self.handle_user_input).start()
 
     def stop_connection(self):
-        self.connection.stop()
+        self.node_server.stop()
+        self.stop_flag.set()
 
-    def connect_to(self, host, port):
-        return self.connection.connect_to(host, port)
+    def connect_to(self, host, port):  # TODO : take address
+        return self.node_server.connect_to(host, port)
 
     def broadcast_to_network(self, message):
-        self.connection.broadcast_to_network(message)
+        self.node_server.broadcast_to_network(message)
 
-    def construct_message(self, data, type, receiver=None, overload={}):
-        dico = {"data": data, "type": type, "time": str(time.time()), "sender": self.id, "receiver": receiver}
-        msg_id = random.randint(0, 100)  # To be determined (not random imo)
-        dico["msg_id"] = msg_id
+    def construct_message(self, data, msg_type, receiver=None, overload=None, msg_id=None):
+        if overload is None:
+            overload = {}
+
+        if msg_id is None:
+            msg_id = random.randint(0, 100)  # TODO : uuid
+
+        dico = {"data": data, "type": msg_type, "time": str(time.time()), "sender": self.id, "receiver": receiver,
+                "msg_id": msg_id}
+
         # overload can change the values of the dictionnary if necessary
-        message = {**dico, **overload}
-        return message
+        return {**dico, **overload}
 
-    def encrypt_message(self, msg, path_list):
-        encrypt1 = json.dumps(msg)
-        encrypt1 = rsa.encrypt(encrypt1.encode("utf-8"), path_list[2][2])  # path_list(2)(2) donne la publicKey de exitNode
-        encrypt2 = self.construct_message(encrypt1, "msg", receiver=(path_list[2][0], path_list[2][1]))
-
-        # (path_list(1)(0),path_list(1)(1)) -> donne un tuple avec address et port du prochain hop
-
-        encrypt2 = json.dumps(encrypt2)
-        encrypt2 = rsa.encrypt(encrypt2.encode("utf-8"), path_list[1][2])
-
-        encrypt3 = self.construct_message(encrypt2, "msg", receiver=(path_list[1][0], path_list[1][1]))
-        encrypt3 = json.dumps(encrypt3)
-        encrypt3 = rsa.encrypt(encrypt3.encode("utf-8"), path_list(0)(2))
-
-        final_message = self.construct_message(encrypt3, "msg", (path_list[0][0], path_list[0][1]))
-
-        return final_message
-        
     def generate_path(self):
-        n = len(self.listNodes)
+        n = len(self.active_nodes)
         if n < 5:
             print("Not enough nodes")
             return
         else:
-            return random.sample(self.listNodes, 3)
+            return random.sample(self.active_nodes, 3)
 
-    def send_message_to(self, data, type, receiver):
-        message = self.construct_message(data, type, receiver)
-
-        connection = self.connected_nodes[receiver]
+    def send_message_to(self, data, msg_type, receiver):
+        message = self.construct_message(data, msg_type, receiver)
         dumped_message = json.dumps(message)
+
+        if receiver not in self.node_server.connection_threads:
+            self.connect_to(receiver[0], receiver[1])
+
+        connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
+        self.node_server.connection_threads.pop(receiver)
+
+    def handle_user_input(self):
+        """
+        Handle user input commands.
+        """
+        pass
+
+    def handle_messages(self):
+        """
+        Handle any message received by one of the connection threads.
+        """
+        while not self.stop_flag.is_set():
+            try:
+                while not self.message_queue.empty():
+                    msg = self.message_queue.get()
+                    if msg:
+                        self.data_handler(msg)
+
+            except Exception as e:
+                self.stop_connection()
+                raise e
 
     def data_handler(self, data):
         """
@@ -100,29 +107,21 @@ class Node:
                 self.handle_response(msg)
                 return
 
+            # TODO : use an encryption/decryption module
             if not msg["msg_id"] in self.pending_msg:
                 # decryption
                 encrypted_data = msg["data"]
-                decrypted_data = rsa.decrypt(encrypted_data.decode('utf-8'), self.keyPrivate)
-                decrypted_msg = json.loads(decrypted_data)
-
-                # Transferring the message
-                self.send_message_to(decrypted_msg["data"], "msg", decrypted_msg["receiver"])
-
-                # Add the message+sender in the pending list
-                self.pending_msg[msg["msg_id"]] = msg["sender"]
-
+                print(encrypted_data)
             else:
                 # encryption
                 data = json.dumps(msg)
-                encrypted_data = rsa.encrypt(data.encode('utf-8'), self.keyPublic)
-
+                # encrypted_data = rsa.encrypt(data.encode('utf-8'), self.keyPublic)
                 # Transferring the message
-                receiver = self.pending_msg.get(msg["msg_id"])
-                self.send_message_to(encrypted_data, "msg", receiver)
+                # receiver = self.pending_msg.get(msg["msg_id"])
+                # self.send_message_to(encrypted_data, "msg", receiver)
 
                 # Remove the message because it is on its way back
-                self.pending_msg.pop(msg["msg_id"])
+                # self.pending_msg.pop(msg["msg_id"])
 
     def print_message(self, sender, msg):
         print("Node " + self.id + "received Message from : " + str(sender))
