@@ -2,7 +2,7 @@ import threading
 from time import sleep
 
 
-class Diffie_Hellmann(threading.Thread):
+class WaitingThread(threading.Thread):
     def __init__(self, id, node):
         super().__init__()
         self.node = node

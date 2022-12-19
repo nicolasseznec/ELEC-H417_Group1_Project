@@ -23,6 +23,7 @@ class ConnectionThread(threading.Thread):
             try:
                 data = self.sock.recv(4096)
                 msg = data.decode()
+                # print("Node " + str(self.id) + " : " + msg)
                 self.node.data_handler(msg)
 
             except socket.timeout:
