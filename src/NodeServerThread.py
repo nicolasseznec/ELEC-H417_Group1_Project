@@ -21,13 +21,12 @@ class NodeServerThread(threading.Thread):
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         print("Node " + str(self.id) + " starting on port " + str(self.port))
         self.sock.bind((self.host, self.port))
-        self.sock.settimeout(10.0)
+        self.sock.settimeout(1.0)
         self.sock.listen(1)
 
     def run(self):
         while not self.flag.is_set():
             try:
-                # client_address = (host, port)
                 client_sock, client_address = self.sock.accept()
                 self.handle_connection(client_sock, client_address)
 
@@ -42,8 +41,6 @@ class NodeServerThread(threading.Thread):
             except Exception as e:
                 raise e
 
-            sleep(0.01)
-
         for connection in self.connection_threads.values():
             connection.stop()
 
@@ -51,11 +48,11 @@ class NodeServerThread(threading.Thread):
         print("Node " + str(self.id) + " stopped")
 
     def handle_connection(self, connection, address):
-        print(f"{self.id} accepted {address}")
+        # print(f"{self.id} accepted {address}")
 
         # Exchange IDs
-        connected_node_id = connection.recv(2048).decode(ENCODING)  # 1024 ?
-        print(f"received {connected_node_id}")
+        connected_node_id = connection.recv(2048).decode(ENCODING)
+        # print(f"received {connected_node_id}")
         connection.send(str(self.id).encode(ENCODING))
 
         if self.id != connected_node_id:
@@ -68,7 +65,6 @@ class NodeServerThread(threading.Thread):
 
     def connect_to(self, host, port):
         address = (host, port)
-        print(address)
         if address in self.connection_threads:
             # already connected
             return self.node.connected_nodes[address]
@@ -77,9 +73,8 @@ class NodeServerThread(threading.Thread):
         sock.connect(address)
 
         sock.send(str(self.id).encode(ENCODING))
-        print(f"sent {self.id}")
         connected_node_id = sock.recv(1024).decode(ENCODING)
-        print("connected with node: ", connected_node_id)
+        print(f"Node {self.id} connected with node: {connected_node_id}")
 
         thread_client = self.create_connection(sock, address)
 

@@ -2,7 +2,6 @@ import json
 import random
 import time
 
-
 from NodeServerThread import *
 
 
@@ -84,13 +83,12 @@ class Node:
             try:
                 while not self.message_queue.empty():
                     msg = self.message_queue.get()
-                    # print(f"{self.id} read {msg}")
-                    self.data_handler(msg)
-                sleep(0.1)
+                    if msg:
+                        self.data_handler(msg)
 
-            except Exception:
+            except Exception as e:
                 self.stop_connection()
-                break
+                raise e
 
     def data_handler(self, data):
         """
