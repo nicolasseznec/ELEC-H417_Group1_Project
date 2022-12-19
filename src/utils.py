@@ -15,4 +15,10 @@ def str_to_dict(string):
 
     return return_value
 
-
+def generate_id_list(length):
+    return_list = []
+    for i in range[length]:
+        id = random.randint(0, 100)
+        # id = uuid.uuid4()
+        return_list.append(id)
+    return return_list
