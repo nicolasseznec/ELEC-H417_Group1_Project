@@ -45,7 +45,6 @@ class Node:
     def broadcast_to_network(self, message):
         self.node_server.broadcast_to_network(message)
 
-
     def construct_message(self, data, type, receiver=None, id=None, sender=None, overload=None):
         if overload is None:
             overload = {}
