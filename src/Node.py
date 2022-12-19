@@ -2,6 +2,7 @@ import json
 import random
 import time
 
+
 from NodeServerThread import *
 
 
@@ -19,14 +20,17 @@ class Node:
 
         self.active_nodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
 
+        self.message_queue = Queue()
+        self.stop_flag = threading.Event()
         self.node_server = NodeServerThread(self)
-        # TODO : start connection
 
-    def start_connection(self):
         self.node_server.start()
+        threading.Thread(target=self.handle_messages).start()
+        threading.Thread(target=self.handle_user_input).start()
 
     def stop_connection(self):
         self.node_server.stop()
+        self.stop_flag.set()
 
     def connect_to(self, host, port):  # TODO : take address
         return self.node_server.connect_to(host, port)
@@ -34,12 +38,15 @@ class Node:
     def broadcast_to_network(self, message):
         self.node_server.broadcast_to_network(message)
 
-    def construct_message(self, data, msg_type, receiver=None, overload=None):
+    def construct_message(self, data, msg_type, receiver=None, overload=None, msg_id=None):
         if overload is None:
             overload = {}
-        dico = {"data": data, "type": msg_type, "time": str(time.time()), "sender": self.id, "receiver": receiver}
-        msg_id = random.randint(0, 100)  # To be determined (not random imo)
-        dico["msg_id"] = msg_id
+
+        if msg_id is None:
+            msg_id = random.randint(0, 100)  # TODO : uuid
+
+        dico = {"data": data, "type": msg_type, "time": str(time.time()), "sender": self.id, "receiver": receiver,
+                "msg_id": msg_id}
 
         # overload can change the values of the dictionnary if necessary
         return {**dico, **overload}
@@ -62,6 +69,28 @@ class Node:
         connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
         self.node_server.connection_threads.pop(receiver)
+
+    def handle_user_input(self):
+        """
+        Handle user input commands.
+        """
+        pass
+
+    def handle_messages(self):
+        """
+        Handle any message received by one of the connection threads.
+        """
+        while not self.stop_flag.is_set():
+            try:
+                while not self.message_queue.empty():
+                    msg = self.message_queue.get()
+                    # print(f"{self.id} read {msg}")
+                    self.data_handler(msg)
+                sleep(0.1)
+
+            except Exception:
+                self.stop_connection()
+                break
 
     def data_handler(self, data):
         """

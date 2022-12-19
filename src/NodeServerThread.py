@@ -1,3 +1,5 @@
+from queue import Queue
+
 from ConnectionsThread import *
 from constants import ENCODING
 
@@ -12,7 +14,7 @@ class NodeServerThread(threading.Thread):
         self.id = node.id
 
         self.connection_threads = {}
-
+        self.diconnections = Queue()
         self.flag = threading.Event()
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -27,19 +29,12 @@ class NodeServerThread(threading.Thread):
             try:
                 # client_address = (host, port)
                 client_sock, client_address = self.sock.accept()
-                print(f"{self.id} accpeted {client_address}")
-                # get the id of the other node
-                connected_node_id = client_sock.recv(2048).decode(ENCODING)  # 1024 ?
-                print(f"received {connected_node_id}")
-                client_sock.send(str(self.id).encode(ENCODING))
+                self.handle_connection(client_sock, client_address)
 
-                if self.id != connected_node_id:
-                    client_thread = self.create_connection(client_sock, client_address)
-                    client_thread.start()
-
-                    self.connection_threads[client_address] = client_thread
-                else:
-                    client_sock.close()
+                while not self.diconnections.empty():
+                    address = self.diconnections.get()
+                    self.connection_threads.pop(address)
+                    print(f"disonnected : {address}")
 
             except socket.timeout:
                 pass
@@ -54,6 +49,22 @@ class NodeServerThread(threading.Thread):
 
         self.sock.close()
         print("Node " + str(self.id) + " stopped")
+
+    def handle_connection(self, connection, address):
+        print(f"{self.id} accepted {address}")
+
+        # Exchange IDs
+        connected_node_id = connection.recv(2048).decode(ENCODING)  # 1024 ?
+        print(f"received {connected_node_id}")
+        connection.send(str(self.id).encode(ENCODING))
+
+        if self.id != connected_node_id:
+            client_thread = self.create_connection(connection, address)
+            client_thread.start()
+
+            self.connection_threads[address] = client_thread
+        else:
+            connection.close()
 
     def connect_to(self, host, port):
         address = (host, port)
@@ -80,7 +91,7 @@ class NodeServerThread(threading.Thread):
             node.send(message)
 
     def create_connection(self, sock, client_address):
-        return ConnectionThread(self.node, sock, client_address)
+        return ConnectionThread(self.node.message_queue, self.diconnections, sock, client_address)
 
     def stop(self):
         self.flag.set()

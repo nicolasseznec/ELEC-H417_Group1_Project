@@ -6,10 +6,11 @@ from constants import ENCODING
 
 
 class ConnectionThread(threading.Thread):
-    def __init__(self, node, sock, client_address):
+    def __init__(self, message_queue, disonnection_queue, sock, client_address):
         super().__init__()
 
-        self.node = node
+        self.message_queue = message_queue
+        self.disonnection_queue = disonnection_queue
 
         self.sock = sock
         self.client_address = client_address
@@ -20,10 +21,10 @@ class ConnectionThread(threading.Thread):
 
         while not self.flag.is_set():
             try:
+                # TODO : Receive data properly
                 data = self.sock.recv(4096)
                 msg = data.decode()
-                # TODO : Lock and Release node?
-                self.node.data_handler(msg)
+                self.message_queue.put(msg)
 
             except socket.timeout:
                 self.flag.set()
@@ -36,7 +37,7 @@ class ConnectionThread(threading.Thread):
 
         self.sock.settimeout(None)
         self.sock.close()
-        self.node.node_server.connection_threads.pop(self.client_address)
+        self.disonnection_queue.put(self.client_address)
 
     def send(self, data):
         self.sock.sendall(data.encode(ENCODING))
