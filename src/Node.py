@@ -5,6 +5,7 @@ import time
 import uuid
 
 from NodeServerThread import *
+from src.constants import LOCALHOST
 from utils import *
 from WaitingThread import *
 from Key import *
@@ -25,6 +26,7 @@ class Node:
 
         # Pending key lists of the diffie hellman exchange
         self.pending_key_list = {}
+        self.waiting_threads = {}
 
         # Message first sent from this Node
         self.self_messages = {}
@@ -136,7 +138,8 @@ class Node:
 
         if msg_type == "key":
             if msg["msg_id"] in self.pending_key_list:
-                self.pending_key_list[msg["msg_id"]].append(msg["data"])  # Getting the public key back
+                # self.pending_key_list[msg["msg_id"]].append(msg["data"])  # Getting the public key back
+                self.update_pending_key_list(msg["msg_id"], msg["data"])
             else:
                 self.reply_with_key(msg)  # Reply with public key
             return
@@ -155,7 +158,8 @@ class Node:
                     if type(encrypted_data) is dict:
                         encrypted_data = encrypted_data["data"]
                         decrypted_data = encrypted_data
-                self.pending_key_list[msg["msg_id"]].append(decrypted_data)  # Getting the public key back
+                # self.pending_key_list[msg["msg_id"]].append(decrypted_data)  # Getting the public key back
+                self.update_pending_key_list(msg["msg_id"], decrypted_data)
                 return
 
             # TODO : use an encryption/decryption module
@@ -172,13 +176,17 @@ class Node:
                     #     return
                 else:
                     return
+
                 typed = decrypted_data["type"]
+                if typed == "request":
+                    # Exit Node
+                    self.handle_request(decrypted_data)
+
                 # Add the transfer in the table
                 self.table.new_transfer(msg["msg_id"], (msg["sender"][0], msg["sender"][1]),
                                         decrypted_data["msg_id"], (decrypted_data["receiver"][0], decrypted_data["receiver"][1]))
-                if typed == "request":
-                    self.handle_request(decrypted_data["data"])
                 if typed == "msg" or typed == "key":
+                    # Transfer it
                     self.send_message(decrypted_data)
 
             else:
@@ -215,10 +223,12 @@ class Node:
             self.pending_key_list[id] = key_list
 
             # Waiting thread
-            dh_thread = WaitingThread(id, self)
-            dh_thread.start()
+            # dh_thread = WaitingThread(id, self)
+            waiting_thread = WaitingThread()
+            self.waiting_threads[id] = waiting_thread
+            waiting_thread.start()
             self.send_message(message)
-            dh_thread.join()
+            waiting_thread.join()
             key_list = self.pending_key_list[id]
             key_list[-1] = generate_shared_keys(private_key, key_list[-1])
             self.pending_key_list.pop(id)
@@ -230,9 +240,11 @@ class Node:
         Sends a message in the tor network from A to Z
         """
         node_list = self.generate_path()
+        hop_list = ((LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103))
+        node_list = hop_list
         id_list = generate_id_list(len(node_list))
         key_list = self.launch_key_exchange(node_list, id_list)
-        message = self.construct_message(msg, "msg", (host, port))
+        message = self.construct_message(msg, "request", (host, port))
         message = self.onion_pack(node_list, key_list, id_list, message)
         self.send_message(message)
 
@@ -266,7 +278,8 @@ class Node:
         """
         Exit node action
         """
-        pass
+        print(decrypted_data)
+
 
     def reply_with_key(self, msg):
         """
@@ -277,3 +290,8 @@ class Node:
         self.table.new_key(msg["msg_id"], (msg["sender"][0], msg["sender"][1]), shared_keys)
         reply = self.construct_message(public_key, "msg", msg["sender"], msg["msg_id"])
         self.send_message(reply)
+
+    def update_pending_key_list(self, id, public_key):
+        self.pending_key_list[id].append(public_key)
+        self.waiting_threads[id].wake()
+        self.waiting_threads.pop(id)
