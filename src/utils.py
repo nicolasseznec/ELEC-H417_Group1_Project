@@ -1,25 +1,31 @@
-# TODO
 import json
+import pickle
 from random import randint
 
-def str_to_dict(string):
+from src.Key import decrypt_cbc
+
+
+def byte_to_dict(string):
     try:
-        return_value = json.loads(string)
+        if isinstance(string, str):
+            return string
+        if isinstance(string, bytes):
+            return pickle.loads(string)
 
     except json.decoder.JSONDecodeError:
         return None
 
-    return return_value
 
-def dict_to_str(dict):
-    if type(dict) is str:
-        return dict
+def dict_to_byte(dict):
+    if type(dict) is bytes:
+        return bytes
     else:
         try:
-            return_value = json.dumps(dict)
+            return_value = pickle.dumps(dict)
         except json.decoder.JSONDecodeError:
             return None
     return return_value
+
 
 def generate_id_list(length):
     return_list = []
@@ -28,3 +34,17 @@ def generate_id_list(length):
         # id = uuid.uuid4()
         return_list.append(id)
     return return_list
+
+
+def unpack_onion(key_list, msg):
+    if not isinstance(msg, dict):
+        return msg
+    elif not key_list:
+        return msg["data"]
+    # Recursive case: decrypt the message and call the function again
+    else:
+        key = key_list[0]
+        encrypted_data = msg["data"]
+        decrypted_data = decrypt_cbc(key, encrypted_data)
+        decrypted_data = byte_to_dict(decrypted_data)
+        return unpack_onion(key_list[1:], decrypted_data)

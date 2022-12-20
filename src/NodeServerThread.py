@@ -63,8 +63,8 @@ class NodeServerThread(threading.Thread):
         else:
             connection.close()
 
-    def connect_to(self, host, port):
-        address = (host, port)
+    def connect_to(self, address):
+
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(address)

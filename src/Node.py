@@ -46,8 +46,8 @@ class Node:
         self.node_server.stop()
         self.stop_flag.set()
 
-    def connect_to(self, host, port):  # TODO : take address
-        return self.node_server.connect_to(host, port)
+    def connect_to(self, addr):
+        return self.node_server.connect_to(addr)
 
     def broadcast_to_network(self, message):
         self.node_server.broadcast_to_network(message)
@@ -75,17 +75,6 @@ class Node:
             return
         else:
             return random.sample(self.active_nodes, 3)
-
-    def send_message_to(self, data, msg_type, receiver):
-        message = self.construct_message(data, msg_type, receiver)
-        dumped_message = json.dumps(message)
-
-        if receiver not in self.node_server.connection_threads:
-            self.connect_to(receiver[0], receiver[1])
-
-        connection = self.node_server.connection_threads[receiver]
-        connection.send(dumped_message)
-        self.node_server.connection_threads.pop(receiver)
 
     def handle_user_input(self):
         """
@@ -115,10 +104,9 @@ class Node:
 
         dumped_message = pickle.dumps(msg)
         if receiver not in self.node_server.connection_threads:
-            connection = self.connect_to(receiver[0], receiver[1])
+            connection = self.connect_to(receiver)
         else:
             connection = self.node_server.connection_threads[receiver]
-        # connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
         self.node_server.connection_threads.pop(receiver)
 
@@ -129,20 +117,15 @@ class Node:
         else -> manage the data by transferring etc...
         """
         # msg = str_to_dict(data)
-        # print("Node " + str(self.id) + " received : " + str(msg))
+        print("Node " + str(self.id) + " received : " + str(msg))
         if msg["receiver"][0] != self.host or msg["receiver"][1] != self.port:
-            # wrong address
             print("wrong addr")
             return
 
         msg_type = msg["type"]
 
         if msg_type == "key":
-            if msg["msg_id"] in self.pending_key_list:
-                # self.pending_key_list[msg["msg_id"]].append(msg["data"])  # Getting the public key back
-                self.update_pending_key_list(msg["msg_id"], msg["data"])
-            else:
-                self.reply_with_key(msg)  # Reply with public key
+            self.reply_with_key(msg)  # Reply with public key
             return
 
         if msg_type == "msg":
@@ -151,19 +134,10 @@ class Node:
                 self.handle_response(msg)
                 return
             if msg["msg_id"] in self.pending_key_list:
-                encrypted_data = msg["data"]
-                decrypted_data = msg["data"]
-                for key in self.pending_key_list[msg["msg_id"]]:
-                    decrypted_data = decrypt_cbc(key, encrypted_data)
-                    encrypted_data = pickle.loads(decrypted_data)
-                    if type(encrypted_data) is dict:
-                        encrypted_data = encrypted_data["data"]
-                        decrypted_data = encrypted_data
-                # self.pending_key_list[msg["msg_id"]].append(decrypted_data)  # Getting the public key back
-                self.update_pending_key_list(msg["msg_id"], decrypted_data)
+                decrypted_data = unpack_onion(self.pending_key_list[msg["msg_id"]], msg)
+                self.update_pending_key_list(msg["msg_id"], decrypted_data)  # Getting the public key back
                 return
 
-            # TODO : use an encryption/decryption module
             line = (msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
             if line not in self.table.transfer_table:
                 # Decrypt
@@ -172,9 +146,6 @@ class Node:
                 key = self.table.get_key(msg["msg_id"], msg["sender"])
                 if key is not None:
                     decrypted_data = decrypt_cbc(key, encrypted_data)
-                    # decrypted_data = str_to_dict(decrypted_data)
-                    # if decrypted_data is None:  # Not a dict
-                    #     return
                 else:
                     return
 
@@ -202,11 +173,9 @@ class Node:
                 message = self.construct_message(encrypted_data, "msg", receiver, msg_id)
                 self.send_message(message)
 
-
     def launch_key_exchange(self, hop_list, id_list):
         """
         Diffie Hellmann exchange
-        To be continued...............
         """
         key_list = []
         for hop in hop_list:
@@ -223,7 +192,6 @@ class Node:
             self.pending_key_list[id] = key_list
 
             # Waiting thread
-            # dh_thread = WaitingThread(id, self)
             waiting_thread = WaitingThread()
             self.waiting_threads[id] = waiting_thread
             waiting_thread.start()
@@ -249,22 +217,28 @@ class Node:
         message = self.onion_pack(node_list, key_list, id_list, message)
         self.send_message(message)
 
-    def onion_pack(self, hop_list, key_list, id_list, root_message):
+    def onion_pack(self, hop_list, key_list, id_list, root_message, i=None):
         """
-        Packs the root_message in an onion
+        Packs the root_message in an onion recursively
         """
-        message = root_message
+        # Set the initial index value if not provided
+        if i is None:
+            i = len(key_list) - 1
+        if i < 0:
+            return root_message
 
-        for i in range(len(key_list) - 1, -1, -1):
-            encryption = encrypt_cbc(key_list[i], message)
-            msg_id = id_list[i]
-            if i != 0:
-                sender = hop_list[i - 1]
-            else:
-                sender = (self.host, self.port)
-            message = self.construct_message(encryption, "msg", hop_list[i], id=msg_id, sender=sender)
+        encryption = encrypt_cbc(key_list[i], root_message)
+        msg_id = id_list[i]
+        if i != 0:
+            sender = hop_list[i - 1]
+        else:
+            sender = (self.host, self.port)
+        message = self.construct_message(encryption, "msg", hop_list[i], id=msg_id, sender=sender)
 
-        return message
+        if i == 0:
+            return message
+        else:
+            return self.onion_pack(hop_list, key_list, id_list, message, i=i - 1)
 
     def handle_response(self, msg):
         """
@@ -272,13 +246,7 @@ class Node:
         """
         key_list = self.pending_request.get(msg["msg_id"])
         self.pending_request.pop(msg["msg_id"])
-        encrypted_data = msg["data"]
-        decrypted_data = ""
-        for key in key_list:
-            decrypted_data = decrypt_cbc(key, encrypted_data)
-            if type(decrypted_data) is not str:
-                decrypted_data = pickle.loads(decrypted_data)
-                encrypted_data = decrypted_data["data"]
+        decrypted_data = unpack_onion(key_list, msg)
 
         print(decrypted_data)
 
@@ -294,7 +262,6 @@ class Node:
         # print(key)
         encrypted_response = encrypt_cbc(key, response)
         message = self.construct_message(encrypted_response, "msg", addr, id)
-        print(message)
         # message = self.construct_message("Hello", "msg", addr, id=10)
         # print(message)
         self.send_message(message)
