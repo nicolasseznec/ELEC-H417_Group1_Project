@@ -175,7 +175,7 @@ class Node:
 
     def launch_key_exchange(self, hop_list, id_list):
         """
-        Diffie Hellmann exchange
+        Diffie Hellman exchange
         """
         key_list = []
         for hop in hop_list:

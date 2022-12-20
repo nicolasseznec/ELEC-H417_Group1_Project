@@ -64,8 +64,6 @@ class NodeServerThread(threading.Thread):
             connection.close()
 
     def connect_to(self, address):
-
-
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(address)
 

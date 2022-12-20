@@ -28,6 +28,9 @@ def dict_to_byte(dict):
 
 
 def generate_id_list(length):
+    """
+    Generates a random list of msg_id of the desired length
+    """
     return_list = []
     for i in range(length):
         id = randint(0, 100)
@@ -37,6 +40,9 @@ def generate_id_list(length):
 
 
 def unpack_onion(key_list, msg):
+    """
+    Decrypt an onion message recursively
+    """
     if not isinstance(msg, dict):
         return msg
     elif not key_list:
