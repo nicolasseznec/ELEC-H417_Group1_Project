@@ -10,6 +10,7 @@ from utils import *
 from WaitingThread import *
 from Key import *
 from Table import *
+from Request import *
 
 
 class Node:
@@ -21,8 +22,8 @@ class Node:
         self.private_key, self.public_key = generate_self_keys()
 
         self.table = Table()
-        # Pending messages with a list of Msg_id : (sender_host, sender_port)
-        self.pending_msg = {}
+        # Pending messages with a set of Msg_id : (sender_host, sender_port, [key1, key2, key3])
+        self.pending_request = {}
 
         # Pending key lists of the diffie hellman exchange
         self.pending_key_list = {}
@@ -108,16 +109,16 @@ class Node:
                 raise e
 
     def send_message(self, msg):
-        # TODO refactor with the connected node list
         receiver = (msg["receiver"][0], msg["receiver"][1])
         if msg["sender"][0] != self.host or msg["sender"][1] != self.port:
             print("Not the right sender")
 
-        if receiver not in self.node_server.connection_threads:
-            self.connect_to(receiver[0], receiver[1])
-
         dumped_message = pickle.dumps(msg)
-        connection = self.node_server.connection_threads[receiver]
+        if receiver not in self.node_server.connection_threads:
+            connection = self.connect_to(receiver[0], receiver[1])
+        else:
+            connection = self.node_server.connection_threads[receiver]
+        # connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
         self.node_server.connection_threads.pop(receiver)
 
@@ -145,15 +146,15 @@ class Node:
             return
 
         if msg_type == "msg":
-            if msg["msg_id"] in self.self_messages:
+            if msg["msg_id"] in self.pending_request:
                 # Last point on the way back
                 self.handle_response(msg)
                 return
             if msg["msg_id"] in self.pending_key_list:
                 encrypted_data = msg["data"]
                 decrypted_data = msg["data"]
-                for i in range(len(self.pending_key_list[msg["msg_id"]])):
-                    decrypted_data = decrypt_cbc(self.pending_key_list[msg["msg_id"]][i], encrypted_data)
+                for key in self.pending_key_list[msg["msg_id"]]:
+                    decrypted_data = decrypt_cbc(key, encrypted_data)
                     encrypted_data = pickle.loads(decrypted_data)
                     if type(encrypted_data) is dict:
                         encrypted_data = encrypted_data["data"]
@@ -180,11 +181,13 @@ class Node:
                 typed = decrypted_data["type"]
                 if typed == "request":
                     # Exit Node
-                    self.handle_request(decrypted_data)
+                    self.handle_request(msg["msg_id"], (msg["sender"][0], msg["sender"][1]), decrypted_data["data"])
+                    return
 
                 # Add the transfer in the table
                 self.table.new_transfer(msg["msg_id"], (msg["sender"][0], msg["sender"][1]),
-                                        decrypted_data["msg_id"], (decrypted_data["receiver"][0], decrypted_data["receiver"][1]))
+                                        decrypted_data["msg_id"],
+                                        (decrypted_data["receiver"][0], decrypted_data["receiver"][1]))
                 if typed == "msg" or typed == "key":
                     # Transfer it
                     self.send_message(decrypted_data)
@@ -199,9 +202,6 @@ class Node:
                 message = self.construct_message(encrypted_data, "msg", receiver, msg_id)
                 self.send_message(message)
 
-    def print_message(self, sender, msg):
-        print("Node " + self.id + "received Message from : " + str(sender))
-        print("Content : " + msg)
 
     def launch_key_exchange(self, hop_list, id_list):
         """
@@ -219,7 +219,7 @@ class Node:
             id = id_list[0]
             private_key, public_key = generate_self_keys()
             message = self.construct_message(public_key, "key", hop, id_list[i], sender)
-            message = self.onion_pack(hop_list[:len(key_list) + 1], key_list, id_list, message)
+            message = self.onion_pack(hop_list[:len(key_list)], key_list, id_list, message)
             self.pending_key_list[id] = key_list
 
             # Waiting thread
@@ -235,16 +235,17 @@ class Node:
 
         return key_list
 
-    def message_tor_send(self, host, port, msg):
+    def message_tor_send(self, request):
         """
         Sends a message in the tor network from A to Z
         """
-        node_list = self.generate_path()
+        # node_list = self.generate_path()
         hop_list = ((LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103))
         node_list = hop_list
         id_list = generate_id_list(len(node_list))
         key_list = self.launch_key_exchange(node_list, id_list)
-        message = self.construct_message(msg, "request", (host, port))
+        self.pending_request[id_list[0]] = key_list
+        message = self.construct_message(request, "request", sender="", id=id_list[-1])
         message = self.onion_pack(node_list, key_list, id_list, message)
         self.send_message(message)
 
@@ -253,11 +254,8 @@ class Node:
         Packs the root_message in an onion
         """
         message = root_message
-        # if len(hop_list) != len(key_list):
-        #     print("jsj")
-        #     return
 
-        for i in range(len(key_list)-1, -1, -1):
+        for i in range(len(key_list) - 1, -1, -1):
             encryption = encrypt_cbc(key_list[i], message)
             msg_id = id_list[i]
             if i != 0:
@@ -272,14 +270,34 @@ class Node:
         """
         Final decryption of the response
         """
-        pass
+        key_list = self.pending_request.get(msg["msg_id"])
+        self.pending_request.pop(msg["msg_id"])
+        encrypted_data = msg["data"]
+        decrypted_data = ""
+        for key in key_list:
+            decrypted_data = decrypt_cbc(key, encrypted_data)
+            if type(decrypted_data) is not str:
+                decrypted_data = pickle.loads(decrypted_data)
+                encrypted_data = decrypted_data["data"]
 
-    def handle_request(self, decrypted_data):
+        print(decrypted_data)
+
+    def handle_request(self, id, addr, request):
         """
         Exit node action
         """
-        print(decrypted_data)
+        response = exec_request(request)
 
+        print("Node " + str(self.id) + str(self.table.key_table))
+        print((id, addr))
+        key = self.table.get_key(id, addr)
+        # print(key)
+        encrypted_response = encrypt_cbc(key, response)
+        message = self.construct_message(encrypted_response, "msg", addr, id)
+        print(message)
+        # message = self.construct_message("Hello", "msg", addr, id=10)
+        # print(message)
+        self.send_message(message)
 
     def reply_with_key(self, msg):
         """

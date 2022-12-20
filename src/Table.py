@@ -1,4 +1,3 @@
-
 class Table:
     """
     # key table
