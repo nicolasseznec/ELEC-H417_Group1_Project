@@ -1,23 +1,17 @@
 import requests
 
 
-def make_request(msg, rq_type, ):
+def make_request(request):
     try:
-        x = exec(msg)
+        x = exec(request)
+        print(x)
+        print(x.text)
         if x.status_code == 200:
             return x.text
     except Exception as e:
-        return e
+        raise e
 
-msg = requests.get('https://w3schools.com/python/demopage.htm')
+msg = "requests.get('https://w3schools.com/python/demopage.html')"
+# msg = "str(requests.get('https://w3schools.com/python/demopage.htm'))"
+yep = exec(msg)
 print(make_request(msg))
-
-class myHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        self.redirect()
-    def do_POST(self):
-        self.redirect()
-    def redirect(self):
-        self.send_response(307)
-        self.send_header('Location','http://www.example.com')
-        self.end_headers()
