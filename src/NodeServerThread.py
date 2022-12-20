@@ -67,7 +67,7 @@ class NodeServerThread(threading.Thread):
         address = (host, port)
         if address in self.connection_threads:
             # already connected
-            return self.node.connected_nodes[address]
+            return self.connection_threads[address]
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(address)

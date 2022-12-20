@@ -1,0 +1,22 @@
+import threading
+from time import sleep
+
+
+class WaitingThread(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        # self.node = node
+        # self.id = id
+        # self.starting_point = len(node.pending_key_list[id])
+
+        self.flag = threading.Event()
+
+    def run(self):
+        while not self.flag.is_set():
+            # if len(self.node.pending_key_list[self.id]) > self.starting_point:
+            #     self.flag.set()
+            # sleep(0.1)s
+            self.flag.wait()
+
+    def wake(self):
+        self.flag.set()

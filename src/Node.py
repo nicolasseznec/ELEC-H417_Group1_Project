@@ -1,8 +1,15 @@
 import json
+import pickle
 import random
 import time
+import uuid
 
 from NodeServerThread import *
+from src.constants import LOCALHOST
+from utils import *
+from WaitingThread import *
+from Key import *
+from Table import *
 
 
 class Node:
@@ -11,8 +18,15 @@ class Node:
         self.port = port
         self.id = index
 
+        self.private_key, self.public_key = generate_self_keys()
+
+        self.table = Table()
         # Pending messages with a list of Msg_id : (sender_host, sender_port)
         self.pending_msg = {}
+
+        # Pending key lists of the diffie hellman exchange
+        self.pending_key_list = {}
+        self.waiting_threads = {}
 
         # Message first sent from this Node
         self.self_messages = {}
@@ -37,16 +51,19 @@ class Node:
     def broadcast_to_network(self, message):
         self.node_server.broadcast_to_network(message)
 
-    def construct_message(self, data, msg_type, receiver=None, overload=None, msg_id=None):
+    def construct_message(self, data, type, receiver=None, id=None, sender=None, overload=None):
         if overload is None:
             overload = {}
-
-        if msg_id is None:
-            msg_id = random.randint(0, 100)  # TODO : uuid
-
-        dico = {"data": data, "type": msg_type, "time": str(time.time()), "sender": self.id, "receiver": receiver,
-                "msg_id": msg_id}
-
+        dico = {"type": type, "time": str(time.time()), "receiver": receiver}
+        if id is not None:
+            dico["msg_id"] = id
+        else:
+            dico["msg_id"] = random.randint(0, 100)
+        if sender is not None:
+            dico["sender"] = sender
+        else:
+            dico["sender"] = (self.host, self.port)
+        dico["data"] = data
         # overload can change the values of the dictionnary if necessary
         return {**dico, **overload}
 
@@ -90,45 +107,191 @@ class Node:
                 self.stop_connection()
                 raise e
 
-    def data_handler(self, data):
+    def send_message(self, msg):
+        # TODO refactor with the connected node list
+        receiver = (msg["receiver"][0], msg["receiver"][1])
+        if msg["sender"][0] != self.host or msg["sender"][1] != self.port:
+            print("Not the right sender")
+
+        if receiver not in self.node_server.connection_threads:
+            self.connect_to(receiver[0], receiver[1])
+
+        dumped_message = pickle.dumps(msg)
+        connection = self.node_server.connection_threads[receiver]
+        connection.send(dumped_message)
+        self.node_server.connection_threads.pop(receiver)
+
+    def data_handler(self, msg):
         """
         Receive a message in input,
         if it is not the receiver -> return
         else -> manage the data by transferring etc...
         """
-        msg = json.loads(data)
+        # msg = str_to_dict(data)
+        # print("Node " + str(self.id) + " received : " + str(msg))
         if msg["receiver"][0] != self.host or msg["receiver"][1] != self.port:
             # wrong address
+            print("wrong addr")
             return
 
-        if msg["type"] == "msg":
+        msg_type = msg["type"]
+
+        if msg_type == "key":
+            if msg["msg_id"] in self.pending_key_list:
+                # self.pending_key_list[msg["msg_id"]].append(msg["data"])  # Getting the public key back
+                self.update_pending_key_list(msg["msg_id"], msg["data"])
+            else:
+                self.reply_with_key(msg)  # Reply with public key
+            return
+
+        if msg_type == "msg":
             if msg["msg_id"] in self.self_messages:
                 # Last point on the way back
                 self.handle_response(msg)
                 return
+            if msg["msg_id"] in self.pending_key_list:
+                encrypted_data = msg["data"]
+                decrypted_data = msg["data"]
+                for i in range(len(self.pending_key_list[msg["msg_id"]])):
+                    decrypted_data = decrypt_cbc(self.pending_key_list[msg["msg_id"]][i], encrypted_data)
+                    encrypted_data = pickle.loads(decrypted_data)
+                    if type(encrypted_data) is dict:
+                        encrypted_data = encrypted_data["data"]
+                        decrypted_data = encrypted_data
+                # self.pending_key_list[msg["msg_id"]].append(decrypted_data)  # Getting the public key back
+                self.update_pending_key_list(msg["msg_id"], decrypted_data)
+                return
 
             # TODO : use an encryption/decryption module
-            if not msg["msg_id"] in self.pending_msg:
-                # decryption
+            line = (msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
+            if line not in self.table.transfer_table:
+                # Decrypt
                 encrypted_data = msg["data"]
-                print(encrypted_data)
+
+                key = self.table.get_key(msg["msg_id"], msg["sender"])
+                if key is not None:
+                    decrypted_data = decrypt_cbc(key, encrypted_data)
+                    # decrypted_data = str_to_dict(decrypted_data)
+                    # if decrypted_data is None:  # Not a dict
+                    #     return
+                else:
+                    return
+
+                typed = decrypted_data["type"]
+                if typed == "request":
+                    # Exit Node
+                    self.handle_request(decrypted_data)
+
+                # Add the transfer in the table
+                self.table.new_transfer(msg["msg_id"], (msg["sender"][0], msg["sender"][1]),
+                                        decrypted_data["msg_id"], (decrypted_data["receiver"][0], decrypted_data["receiver"][1]))
+                if typed == "msg" or typed == "key":
+                    # Transfer it
+                    self.send_message(decrypted_data)
+
             else:
                 # encryption
-                data = json.dumps(msg)
-                # encrypted_data = rsa.encrypt(data.encode('utf-8'), self.keyPublic)
+                data = pickle.dumps(msg)
+                key = self.table.get_key(msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
+                encrypted_data = encrypt_cbc(key, data)
                 # Transferring the message
-                # receiver = self.pending_msg.get(msg["msg_id"])
-                # self.send_message_to(encrypted_data, "msg", receiver)
-
-                # Remove the message because it is on its way back
-                # self.pending_msg.pop(msg["msg_id"])
+                msg_id, receiver = self.table.get_transfer(msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
+                message = self.construct_message(encrypted_data, "msg", receiver, msg_id)
+                self.send_message(message)
 
     def print_message(self, sender, msg):
         print("Node " + self.id + "received Message from : " + str(sender))
         print("Content : " + msg)
+
+    def launch_key_exchange(self, hop_list, id_list):
+        """
+        Diffie Hellmann exchange
+        To be continued...............
+        """
+        key_list = []
+        for hop in hop_list:
+            i = len(key_list)
+            if i == 0:
+                sender = None
+            else:
+                sender = hop_list[i - 1]
+
+            id = id_list[0]
+            private_key, public_key = generate_self_keys()
+            message = self.construct_message(public_key, "key", hop, id_list[i], sender)
+            message = self.onion_pack(hop_list[:len(key_list) + 1], key_list, id_list, message)
+            self.pending_key_list[id] = key_list
+
+            # Waiting thread
+            # dh_thread = WaitingThread(id, self)
+            waiting_thread = WaitingThread()
+            self.waiting_threads[id] = waiting_thread
+            waiting_thread.start()
+            self.send_message(message)
+            waiting_thread.join()
+            key_list = self.pending_key_list[id]
+            key_list[-1] = generate_shared_keys(private_key, key_list[-1])
+            self.pending_key_list.pop(id)
+
+        return key_list
+
+    def message_tor_send(self, host, port, msg):
+        """
+        Sends a message in the tor network from A to Z
+        """
+        node_list = self.generate_path()
+        hop_list = ((LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103))
+        node_list = hop_list
+        id_list = generate_id_list(len(node_list))
+        key_list = self.launch_key_exchange(node_list, id_list)
+        message = self.construct_message(msg, "request", (host, port))
+        message = self.onion_pack(node_list, key_list, id_list, message)
+        self.send_message(message)
+
+    def onion_pack(self, hop_list, key_list, id_list, root_message):
+        """
+        Packs the root_message in an onion
+        """
+        message = root_message
+        # if len(hop_list) != len(key_list):
+        #     print("jsj")
+        #     return
+
+        for i in range(len(key_list)-1, -1, -1):
+            encryption = encrypt_cbc(key_list[i], message)
+            msg_id = id_list[i]
+            if i != 0:
+                sender = hop_list[i - 1]
+            else:
+                sender = (self.host, self.port)
+            message = self.construct_message(encryption, "msg", hop_list[i], id=msg_id, sender=sender)
+
+        return message
 
     def handle_response(self, msg):
         """
         Final decryption of the response
         """
         pass
+
+    def handle_request(self, decrypted_data):
+        """
+        Exit node action
+        """
+        print(decrypted_data)
+
+
+    def reply_with_key(self, msg):
+        """
+        Reply in the DH exchange
+        """
+        private_key, public_key = generate_self_keys()
+        shared_keys = generate_shared_keys(private_key, msg["data"])
+        self.table.new_key(msg["msg_id"], (msg["sender"][0], msg["sender"][1]), shared_keys)
+        reply = self.construct_message(public_key, "msg", msg["sender"], msg["msg_id"])
+        self.send_message(reply)
+
+    def update_pending_key_list(self, id, public_key):
+        self.pending_key_list[id].append(public_key)
+        self.waiting_threads[id].wake()
+        self.waiting_threads.pop(id)

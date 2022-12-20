@@ -1,7 +1,6 @@
+import pickle
 import threading
 import socket
-
-from constants import ENCODING
 
 
 class ConnectionThread(threading.Thread):
@@ -22,12 +21,15 @@ class ConnectionThread(threading.Thread):
             try:
                 # TODO : Receive data properly
                 data = self.sock.recv(4096)
-                msg = data.decode()
+                msg = pickle.loads(data)
                 if msg:
                     self.message_queue.put(msg)
 
             except socket.timeout:
                 self.flag.set()
+
+            except EOFError:
+                pass
 
             except Exception as e:
                 self.flag.set()
@@ -38,7 +40,8 @@ class ConnectionThread(threading.Thread):
         # print(f"ended connection thread {self.client_address}")
 
     def send(self, data):
-        self.sock.sendall(data.encode(ENCODING))
+        # self.sock.sendall(data.encode(ENCODING))
+        self.sock.sendall(data)
 
     def stop(self):
         self.flag.set()
