@@ -207,11 +207,13 @@ class Node:
                 sender = None
             else:
                 sender = hop_list[i - 1]
+
             id = id_list[0]
             private_key, public_key = generate_self_keys()
             message = self.construct_message(public_key, "key", hop, id_list[i], sender)
             message = self.onion_pack(hop_list[:len(key_list) + 1], key_list, id_list, message)
             self.pending_key_list[id] = key_list
+
             # Waiting thread
             dh_thread = WaitingThread(id, self)
             dh_thread.start()
@@ -220,6 +222,7 @@ class Node:
             key_list = self.pending_key_list[id]
             key_list[-1] = generate_shared_keys(private_key, key_list[-1])
             self.pending_key_list.pop(id)
+
         return key_list
 
     def message_tor_send(self, host, port, msg):
@@ -242,7 +245,7 @@ class Node:
         #     print("jsj")
         #     return
 
-        for i in reversed(range(len(key_list))):
+        for i in range(len(key_list)-1, -1, -1):
             encryption = encrypt_cbc(key_list[i], message)
             msg_id = id_list[i]
             if i != 0:

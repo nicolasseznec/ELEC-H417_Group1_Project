@@ -14,8 +14,9 @@ LOCALHOST = "127.0.0.1"
 class TestNode(unittest.TestCase):
 
     def test(self):
-        self.connection_test()
-        self.message_test()
+        # self.connection_test()
+        # self.message_test()
+        self.key_exchange_test()
 
     def connection_test(self):
         node0 = Node(LOCALHOST, 1000, 0)
@@ -28,6 +29,22 @@ class TestNode(unittest.TestCase):
 
         node0.stop_connection()
         node1.stop_connection()
+
+    def key_exchange_test(self):
+        node0 = Node(LOCALHOST, 1000, 0)
+        node1 = Node(LOCALHOST, 101, 1)
+        node2 = Node(LOCALHOST, 102, 2)
+        node3 = Node(LOCALHOST, 103, 3)
+
+        hop_list = ((LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103))
+        id_list = generate_id_list(3)
+        key_list = node0.launch_key_exchange(hop_list, id_list)
+        print(key_list)
+
+        node0.stop_connection()
+        node1.stop_connection()
+        node2.stop_connection()
+        node3.stop_connection()
 
     def message_test(self):
         node1 = Node(LOCALHOST, 1010, 1)

@@ -2,13 +2,12 @@ import hashlib
 import json
 import math
 import pickle
-import random
 from base64 import b64encode, b64decode
+from pyDH import DiffieHellman
 
 from Crypto.Cipher import AES
 from Crypto.Util import Padding
 
-from src.constants import ENCODING
 
 g = 2
 p = 7919
@@ -16,14 +15,19 @@ bits = 128
 
 
 def generate_self_keys():
-    private_key = random.getrandbits(bits)
-    public_key = pow(g, private_key, p)
-    return private_key, public_key
+    # private_key = random.getrandbits(bits)
+    # public_key = pow(g, private_key, p)
+    # return private_key, public_key
+    dh = DiffieHellman()
+    return dh, dh.gen_public_key()
 
 
 def generate_shared_keys(private_key, public_key):
-    shared_key = pow(public_key, private_key, p)
-    shared_key_bytes = shared_key.to_bytes(bits // 8, 'big')  # convert to byte string
+    # shared_key = pow(public_key, private_key, p)
+    # print(shared_key)
+    # shared_key_bytes = shared_key.to_bytes(bits // 8, 'big')  # convert to byte string
+    shared_key = private_key.gen_shared_key(public_key)
+    shared_key_bytes = shared_key.encode()
     hash_function = hashlib.shake_256()
     hash_function.update(shared_key_bytes)
     hashed_key = hash_function.digest(16)  # Need 16 bytes long key for ECB decryption
@@ -56,11 +60,13 @@ def decrypt_cbc(key, ciphertext):
     result = pickle.loads(unpadded_text)
     return result
 
+
 # a, A = generate_self_keys()
 # b, B = generate_self_keys()
-# key = generate_shared_keys(a, B)
-# print(len(key))
-# cipher = encrypt_cbc(key, "Hello guys")
+# keyA = generate_shared_keys(a, B)
+# keyB = generate_shared_keys(b, A)
+# print(len(keyA))
+# cipher = encrypt_cbc(keyA, "Hello guys")
 # print(cipher)
-# print(decrypt_cbc(key, cipher))
+# print(decrypt_cbc(keyB, cipher))
 

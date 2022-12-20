@@ -2,8 +2,6 @@ import pickle
 import threading
 import socket
 
-from constants import ENCODING
-
 
 class ConnectionThread(threading.Thread):
     def __init__(self, message_queue, disonnection_queue, sock, client_address):
