@@ -62,6 +62,7 @@ class NodeServerThread(threading.Thread):
             self.connection_threads[address] = client_thread
         else:
             connection.close()
+        # print(f"{self.id} threads : {self.connection_threads.keys()}")
 
     def connect_to(self, address):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
