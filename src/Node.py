@@ -32,8 +32,7 @@ class Node:
         # Message first sent from this Node
         self.self_messages = {}
 
-        # self.active_nodes = [(LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103), (LOCALHOST, 104), (LOCALHOST, 105), (LOCALHOST, 106)]
-        # self.active_nodes = []
+        # self.active_nodes = {(LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103), (LOCALHOST, 104), (LOCALHOST, 105), (LOCALHOST, 106)}
         self.active_nodes = set()
         self.message_queue = Queue()
         self.stop_flag = threading.Event()
@@ -111,6 +110,7 @@ class Node:
         dumped_message = pickle.dumps(msg)
         if receiver not in self.node_server.connection_threads:
             connection = self.connect_to(receiver)
+            connection.start()
         else:
             connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
@@ -128,6 +128,9 @@ class Node:
             return
 
         msg_type = msg["type"]
+        sender = msg["sender"]
+        self.node_server.connection_threads[sender] = connection  # Register the connection thread with the actual sender
+        connection.client_address = sender
 
         if msg_type == "key":
             self.reply_with_key(msg)  # Reply with public key

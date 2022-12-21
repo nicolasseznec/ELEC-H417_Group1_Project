@@ -22,7 +22,7 @@ class ConnectionThread(threading.Thread):
             try:
                 # TODO : Receive data properly
                 data = self.sock.recv(4096)
-                # print(f"received from {self.client_address}")
+                # print(f"received from {self.client_address} on {self}")
                 msg = pickle.loads(data)
                 if msg:
                     self.message_queue.put((msg, self))

@@ -29,7 +29,6 @@ class DirectoryNode(Node):
             return
 
     def reply_with_nodes(self, msg):
-        # self.active_nodes = [(LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103), (LOCALHOST, 104), (LOCALHOST, 105), (LOCALHOST, 106)]
         reply = self.construct_message(self.active_nodes, "ping", receiver=msg["sender"], id=msg["msg_id"])
         print(f"Directory node sent back {reply}")
         self.send_message(reply)

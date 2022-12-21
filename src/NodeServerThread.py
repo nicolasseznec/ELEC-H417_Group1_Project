@@ -27,6 +27,7 @@ class NodeServerThread(threading.Thread):
         self.sock.listen(1)
 
         self.pinger = self.create_pinger(node.message_queue, (DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT))
+        # self.pinger = None
 
     def run(self):
         while not self.flag.is_set():
@@ -63,14 +64,14 @@ class NodeServerThread(threading.Thread):
         # print(f"received {connected_node_id}")
         connection.send(str(self.id).encode(ENCODING))
 
-        if self.id != connected_node_id:
-            client_thread = self.create_connection(connection, address)
-            client_thread.start()
+        # if self.id != connected_node_id:
+        client_thread = self.create_connection(connection, address)
+        client_thread.start()
 
-            self.connection_threads[address] = client_thread
-        else:
-            connection.close()
-        # print(f"{self.id} threads : {self.connection_threads.keys()}")
+        # self.connection_threads[address] = client_thread
+        # else:
+        #     connection.close()
+        # print(f"{self.id} threads : {self.connection_threads}")
 
     def connect_to(self, address):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
