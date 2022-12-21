@@ -32,7 +32,7 @@ class Node:
         # Message first sent from this Node
         self.self_messages = {}
 
-        self.active_nodes = []  # each element of the liste is a tuple (addresse, port, publicKey)
+        self.active_nodes = [(LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103), (LOCALHOST, 104), (LOCALHOST, 105), (LOCALHOST, 106)] # each element of the liste is a tuple (addresse, port, publicKey)
 
         self.message_queue = Queue()
         self.stop_flag = threading.Event()
@@ -113,13 +113,12 @@ class Node:
     def data_handler(self, msg):
         """
         Receive a message in input,
-        if it is not the receiver -> return
-        else -> manage the data by transferring etc...
+        handles it in order to transfer it, reply, ...
         """
         # msg = str_to_dict(data)
         print("Node " + str(self.id) + " received : " + str(msg))
-        if msg["receiver"][0] != self.host or msg["receiver"][1] != self.port:
-            print("wrong addr")
+
+        if not self.check_message_validity(msg):
             return
 
         msg_type = msg["type"]
@@ -211,9 +210,7 @@ class Node:
         """
         Sends a message in the tor network from A to Z
         """
-        # node_list = self.generate_path()
-        hop_list = ((LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103))
-        node_list = hop_list
+        node_list = self.generate_path()
         id_list = generate_id_list(len(node_list))
         key_list = self.launch_key_exchange(node_list, id_list)
         self.pending_request[id_list[0]] = key_list
@@ -260,14 +257,9 @@ class Node:
         """
         response = exec_request(request)
 
-        print("Node " + str(self.id) + str(self.table.key_table))
-        print((id, addr))
         key = self.table.get_key(id, addr)
-        # print(key)
         encrypted_response = encrypt_cbc(key, response)
         message = self.construct_message(encrypted_response, "msg", addr, id)
-        # message = self.construct_message("Hello", "msg", addr, id=10)
-        # print(message)
         self.send_message(message)
 
     def reply_with_key(self, msg):
@@ -284,3 +276,16 @@ class Node:
         self.pending_key_list[id].append(public_key)
         self.waiting_threads[id].wake()
         self.waiting_threads.pop(id)
+
+    def check_message_validity(self, message):
+        mandatory_keys = ["data", "type", "receiver", "msg_id", "sender"]
+        if isinstance(message, dict):
+            for key in mandatory_keys:
+                if key not in message:
+                    return False
+
+            if message["receiver"][0] != self.host or message["receiver"][1] != self.port:
+                # wrong address
+                return False
+            return True
+
