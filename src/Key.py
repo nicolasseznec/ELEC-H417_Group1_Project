@@ -46,14 +46,14 @@ def encrypt_cbc(key, plaintext):
     # Pad the plaintext to a multiple of the block size (16 bytes)
     padded_plaintext = Padding.pad(pt_byte, 16)
     ciphertext = cipher.encrypt(padded_plaintext)
-    result = b64encode(ciphertext)
-    return result
-
+    # result = b64encode(ciphertext)
+    # return result
+    return ciphertext
 
 def decrypt_cbc(key, ciphertext):
     # Create the cipher object and set the mode to ECB
     cipher = AES.new(key, AES.MODE_ECB)
-    ciphertext = b64decode(ciphertext)
+    # ciphertext = b64decode(ciphertext)
     decrypted_text = cipher.decrypt(ciphertext)
     unpadded_text = Padding.unpad(decrypted_text, 16)
     # result = unpadded_text.decode('utf-8')
@@ -65,7 +65,7 @@ def decrypt_cbc(key, ciphertext):
 # b, B = generate_self_keys()
 # keyA = generate_shared_keys(a, B)
 # keyB = generate_shared_keys(b, A)
-# print(len(keyA))
+# # print(len(keyA))
 # cipher = encrypt_cbc(keyA, "Hello guys")
 # print(cipher)
 # print(decrypt_cbc(keyB, cipher))

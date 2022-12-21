@@ -28,15 +28,15 @@ class Table:
 
     def new_transfer(self, left_id, left_addr, right_id, right_addr):
         # just decrypted
-        if (right_id, right_addr) not in self.transfer_table:
-            self.transfer_table[(right_id, right_addr)] = (left_id, left_addr)
-            return True
-        else:
-            if self.transfer_table[(right_id, right_addr)] == (left_id, left_addr):
-                return True
-            else:
-                # Duplicate
-                return False
+        # if (right_id, right_addr) not in self.transfer_table:
+        self.transfer_table[(right_id, right_addr)] = (left_id, left_addr)
+        # return True
+        # else:
+        #     if self.transfer_table[(right_id, right_addr)] == (left_id, left_addr):
+        #         return True
+        #     else:
+        #         # Duplicate
+        #         return False
 
     def get_transfer(self, id, addr):
         if (id, addr) in self.transfer_table:

@@ -1,5 +1,6 @@
 import json
 import pickle
+import uuid
 from random import randint
 
 from src.Key import decrypt_cbc
@@ -33,8 +34,8 @@ def generate_id_list(length):
     """
     return_list = []
     for i in range(length):
-        id = randint(0, 100)
-        # id = uuid.uuid4()
+        # id = randint(0, 100)
+        id = uuid.uuid4()
         return_list.append(id)
     return return_list
 
