@@ -4,7 +4,7 @@ import socket
 
 
 class ConnectionThread(threading.Thread):
-    def __init__(self, message_queue, disonnection_queue, sock, client_address):
+    def __init__(self, message_queue, disonnection_queue, sock, client_address, timeout=20.0):
         super().__init__()
 
         self.message_queue = message_queue
@@ -14,17 +14,18 @@ class ConnectionThread(threading.Thread):
         self.client_address = client_address
         self.flag = threading.Event()
 
-    def run(self):
-        self.sock.settimeout(10.0)
+        self.sock.settimeout(timeout)
         # self.sock.settimeout(2.0)
 
+    def run(self):
         while not self.flag.is_set():
             try:
                 # TODO : Receive data properly
                 data = self.sock.recv(4096)
+                # print(f"received from {self.client_address} on {self}")
                 msg = pickle.loads(data)
                 if msg:
-                    self.message_queue.put(msg)
+                    self.message_queue.put((msg, self))
 
             except socket.timeout:
                 self.flag.set()

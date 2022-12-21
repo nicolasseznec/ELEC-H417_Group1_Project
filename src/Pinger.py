@@ -1,28 +1,26 @@
 import pickle
 import threading
 import time
+import random
+from ConnectionsThread import ConnectionThread
 
 
-class Pinger(threading.Thread):
-    def __init__(self, directory_node_addr, parent, interval=30):
-        super(Pinger, self).__init__()
-        self.directory_node_addr = directory_node_addr
-        self.parent_node = parent
+class Pinger(ConnectionThread):
+    def __init__(self, message_queue, disonnection_queue, sock, sender, receiver, interval=30.0):
+        super().__init__(message_queue, disonnection_queue, sock, receiver, timeout=50)  # No timeout ?
+        self.directory_node_addr = receiver
+        self.sender = sender
         self.interval = interval
-
-        self.flag = threading.Event()
-
-    def stop(self):
-        self.flag.set()
-
-    def run(self):
-        while not self.flag.is_set():
-            thread = self.parent_node.connect_to(self.directory_node_addr)
-            ping = self.construct_ping()
-            thread.send(ping)
+        threading.Thread(target=self.ping_loop).start()
 
     def construct_ping(self):
         ping = {"type": "ping", "time": str(time.time()), "receiver": self.directory_node_addr,
-                "sender": (self.parent_node.host, self.parent_node.port), "data": ""}
-        ping = pickle.dumps(ping)
-        return ping
+                "sender": self.sender, "data": "", "msg_id": random.randint(0, 100)}
+        return pickle.dumps(ping)
+
+    def ping_loop(self):
+        while not self.flag.is_set():
+            ping = self.construct_ping()
+            print(f"{self.sender} ping !")
+            self.send(ping)
+            time.sleep(self.interval)

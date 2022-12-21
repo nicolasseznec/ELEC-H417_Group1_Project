@@ -16,7 +16,6 @@ from Input import *
 
 class Node:
     def __init__(self, host, port, index):
-
         self.host = host
         self.port = port
         self.id = index
@@ -34,17 +33,21 @@ class Node:
         # Message first sent from this Node
         self.self_messages = {}
 
-        self.active_nodes = [(LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103), (LOCALHOST, 104), (LOCALHOST, 105), (LOCALHOST, 106)] # each element of the liste is a tuple (addresse, port, publicKey)
-
         self.input_handler = InputHandler(self)
+        # self.active_nodes = {(LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103), (LOCALHOST, 104), (LOCALHOST, 105), (LOCALHOST, 106)}
+        self.active_nodes = set()
         self.message_queue = Queue()
         self.stop_flag = threading.Event()
-        self.node_server = NodeServerThread(self)
+        self.node_server = self.create_server()
 
-        self.node_server.start()
         threading.Thread(target=self.handle_messages).start()
         # threading.Thread(target=self.handle_user_input).start()
-        self.input_handler.start()
+
+    def create_server(self):
+        node_server = NodeServerThread(self)
+        node_server.start()
+        return node_server
+
     def stop_connection(self):
         self.node_server.stop()
         self.stop_flag.set()
@@ -85,6 +88,7 @@ class Node:
         Handle user input commands.
         """
         self.input_handler.start()
+        # should wait until the active nodes are retrieved at least once (1 ping to directory node)
 
     def handle_messages(self):
         """
@@ -93,9 +97,9 @@ class Node:
         while not self.stop_flag.is_set():
             try:
                 while not self.message_queue.empty():
-                    msg = self.message_queue.get()
+                    msg, connection = self.message_queue.get()
                     if msg:
-                        self.data_handler(msg)
+                        self.data_handler(msg, connection)
 
             except Exception as e:
                 self.stop_connection()
@@ -109,12 +113,13 @@ class Node:
         dumped_message = pickle.dumps(msg)
         if receiver not in self.node_server.connection_threads:
             connection = self.connect_to(receiver)
+            connection.start()
         else:
             connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
         # self.node_server.connection_threads.pop(receiver)
 
-    def data_handler(self, msg):
+    def data_handler(self, msg, connection):
         """
         Receive a message in input,
         handles it in order to transfer it, reply, ...
@@ -126,9 +131,16 @@ class Node:
             return
 
         msg_type = msg["type"]
+        sender = msg["sender"]
+        self.node_server.connection_threads[sender] = connection  # Register the connection thread with the actual sender
+        connection.client_address = sender
 
         if msg_type == "key":
             self.reply_with_key(msg)  # Reply with public key
+            return
+
+        if msg_type == "ping":
+            self.update_active_nodes(msg["data"])
             return
 
         if msg_type == "msg":
@@ -219,7 +231,6 @@ class Node:
         Sends a message in the tor network from A to Z
         """
         node_list = self.generate_path()
-        node_list =((LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103))
         id_list = generate_id_list(len(node_list))
         key_list = self.launch_key_exchange(node_list, id_list)
         self.pending_request[id_list[0]] = key_list
@@ -264,9 +275,8 @@ class Node:
         """
         Exit node action
         """
-        print(request)
         response = exec_request(request)
-        print(response)
+
         key = self.table.get_key(id, addr)
         encrypted_response = encrypt_cbc(key, response)
         message = self.construct_message(encrypted_response, "msg", addr, id)
@@ -299,4 +309,8 @@ class Node:
                 # wrong address
                 return False
             return True
+
+    def update_active_nodes(self, active_nodes):
+        self.active_nodes = active_nodes
+        print(f"Received active nodes : {active_nodes}")
 
