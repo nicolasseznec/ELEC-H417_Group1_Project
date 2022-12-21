@@ -15,7 +15,8 @@ class ConnectionThread(threading.Thread):
         self.flag = threading.Event()
 
     def run(self):
-        self.sock.settimeout(2.0)
+        self.sock.settimeout(10.0)
+        # self.sock.settimeout(2.0)
 
         while not self.flag.is_set():
             try:

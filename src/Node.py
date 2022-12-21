@@ -108,7 +108,7 @@ class Node:
         else:
             connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
-        self.node_server.connection_threads.pop(receiver)
+        # self.node_server.connection_threads.pop(receiver)
 
     def data_handler(self, msg):
         """
@@ -178,8 +178,9 @@ class Node:
         Diffie Hellman exchange
         """
         key_list = []
-        for hop in hop_list:
-            i = len(key_list)
+        for i in range(len(hop_list)):
+            hop = hop_list[i]
+
             if i == 0:
                 sender = None
             else:
@@ -188,15 +189,18 @@ class Node:
             id = id_list[0]
             private_key, public_key = generate_self_keys()
             message = self.construct_message(public_key, "key", hop, id_list[i], sender)
-            message = self.onion_pack(hop_list[:len(key_list)], key_list, id_list, message)
+            message = self.onion_pack(hop_list[:i], key_list, id_list, message)
             self.pending_key_list[id] = key_list
 
             # Waiting thread
+            timer = time.time()
             waiting_thread = WaitingThread()
             self.waiting_threads[id] = waiting_thread
             waiting_thread.start()
             self.send_message(message)
             waiting_thread.join()
+            print(f"waiting :  {time.time() - timer}")
+
             key_list = self.pending_key_list[id]
             key_list[-1] = generate_shared_keys(private_key, key_list[-1])
             self.pending_key_list.pop(id)
