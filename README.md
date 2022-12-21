@@ -3,7 +3,7 @@
 TODO : 
 - [ ] Report
 - [ ] Challenge-Response
-- [ ] Delete key/transfer from table when returning (put a mark?)
+- [x] Delete key/transfer from table when returning (put a mark?)
 - [ ] Optimize the speed by keeping the connections longer
 - [ ] Handle the message length (what to do when it overloads the communication?)
 - [ ] (Develop a server to put in the simulation network for test purpose)

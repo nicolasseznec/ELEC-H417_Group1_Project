@@ -57,3 +57,5 @@ def unpack_onion(key_list, msg):
         return unpack_onion(key_list[1:], decrypted_data)
 
 
+def mark_message(message):
+    message["mark"] = 1
