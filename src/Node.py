@@ -11,10 +11,12 @@ from WaitingThread import *
 from Key import *
 from Table import *
 from Request import *
+from Input import *
 
 
 class Node:
     def __init__(self, host, port, index):
+
         self.host = host
         self.port = port
         self.id = index
@@ -34,17 +36,19 @@ class Node:
 
         self.active_nodes = [(LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103), (LOCALHOST, 104), (LOCALHOST, 105), (LOCALHOST, 106)] # each element of the liste is a tuple (addresse, port, publicKey)
 
+        self.input_handler = InputHandler(self)
         self.message_queue = Queue()
         self.stop_flag = threading.Event()
         self.node_server = NodeServerThread(self)
 
         self.node_server.start()
         threading.Thread(target=self.handle_messages).start()
-        threading.Thread(target=self.handle_user_input).start()
-
+        # threading.Thread(target=self.handle_user_input).start()
+        self.input_handler.start()
     def stop_connection(self):
         self.node_server.stop()
         self.stop_flag.set()
+        self.input_handler.stop()
 
     def connect_to(self, addr):
         return self.node_server.connect_to(addr)
@@ -80,7 +84,7 @@ class Node:
         """
         Handle user input commands.
         """
-        pass
+        self.input_handler.start()
 
     def handle_messages(self):
         """
@@ -128,7 +132,7 @@ class Node:
             return
 
         if msg_type == "msg":
-            if msg["msg_id"] in self.pending_request:
+            if msg["msg_id"] in self.pending_request:   # TODO maybe
                 # Last point on the way back
                 self.handle_response(msg)
                 return
@@ -165,11 +169,15 @@ class Node:
             else:
                 # encryption
                 data = pickle.dumps(msg)
-                key = self.table.get_key(msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
+                key = self.table.get_key(line[0], line[1])
                 encrypted_data = encrypt_cbc(key, data)
                 # Transferring the message
-                msg_id, receiver = self.table.get_transfer(msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
+                msg_id, receiver = self.table.get_transfer(line[0], line[1])
                 message = self.construct_message(encrypted_data, "msg", receiver, msg_id)
+                # Check if the message is marked
+                if msg.get("mark"):
+                    self.table.drop_path(msg["msg_id"], (msg["sender"][0], msg["sender"][1]))
+                    mark_message(message)
                 self.send_message(message)
 
     def launch_key_exchange(self, hop_list, id_list):
@@ -211,6 +219,7 @@ class Node:
         Sends a message in the tor network from A to Z
         """
         node_list = self.generate_path()
+        node_list =((LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103))
         id_list = generate_id_list(len(node_list))
         key_list = self.launch_key_exchange(node_list, id_list)
         self.pending_request[id_list[0]] = key_list
@@ -255,11 +264,13 @@ class Node:
         """
         Exit node action
         """
+        print(request)
         response = exec_request(request)
-
+        print(response)
         key = self.table.get_key(id, addr)
         encrypted_response = encrypt_cbc(key, response)
         message = self.construct_message(encrypted_response, "msg", addr, id)
+        mark_message(message)
         self.send_message(message)
 
     def reply_with_key(self, msg):
