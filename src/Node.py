@@ -56,15 +56,13 @@ class Node:
     def connect_to(self, addr):
         return self.node_server.connect_to(addr)
 
-    def broadcast_to_network(self, message):
-        self.node_server.broadcast_to_network(message)
-
-    def construct_message(self, data, type, receiver=None, id=None, sender=None, overload=None):
-        if overload is None:
-            overload = {}
-        dico = {"type": type, "time": str(time.time()), "receiver": receiver}
-        if id is not None:
-            dico["msg_id"] = id
+    def construct_message(self, data, msg_type, receiver=None, msg_id=None, sender=None):
+        """
+        Construct a message in the expected pattern
+        """
+        dico = {"type": msg_type, "time": str(time.time()), "receiver": receiver}
+        if msg_id is not None:
+            dico["msg_id"] = msg_id
         else:
             dico["msg_id"] = uuid.uuid4()
         if sender is not None:
@@ -72,8 +70,7 @@ class Node:
         else:
             dico["sender"] = (self.host, self.port)
         dico["data"] = data
-        # overload can change the values of the dictionnary if necessary
-        return {**dico, **overload}
+        return dico
 
     def generate_path(self):
         n = len(self.active_nodes)
@@ -205,7 +202,8 @@ class Node:
 
     def launch_key_exchange(self, hop_list, id_list):
         """
-        Diffie Hellman exchange
+        Diffie Hellman exchange with every node in the hop_list
+        :return The corresponding shared keys list
         """
         key_list = []
         for i in range(len(hop_list)):
@@ -267,7 +265,7 @@ class Node:
             sender = hop_list[i - 1]
         else:
             sender = (self.host, self.port)
-        message = self.construct_message(encryption, "msg", hop_list[i], id=msg_id, sender=sender)
+        message = self.construct_message(encryption, "msg", hop_list[i], msg_id=msg_id, sender=sender)
 
         if i == 0:
             return message
@@ -300,16 +298,16 @@ class Node:
 
         print(decrypted_data)
 
-    def handle_request(self, id, addr, request):
+    def handle_request(self, msg_id, addr, request):
         """
-        Exit node action
+        Called when the exit node has to make a request
         """
         result = exec_request(request)
 
-        key = self.table.get_key(id, addr)
+        key = self.table.get_key(msg_id, addr)
         
         encrypted_result = encrypt_cbc(key, result)
-        message = self.construct_message(encrypted_result, "msg", addr, id)
+        message = self.construct_message(encrypted_result, "msg", addr, msg_id)
 
         mark_message(message)
         self.send_message(message)
@@ -324,10 +322,13 @@ class Node:
         reply = self.construct_message(public_key, "msg", msg["sender"], msg["msg_id"])
         self.send_message(reply)
 
-    def update_pending_key_list(self, id, public_key):
-        self.pending_key_list[id].append(public_key)
-        self.waiting_threads[id].wake()
-        self.waiting_threads.pop(id)
+    def update_pending_key_list(self, msg_id, public_key):
+        """
+        Updates the key list of a route
+        """
+        self.pending_key_list[msg_id].append(public_key)
+        self.waiting_threads[msg_id].wake()
+        self.waiting_threads.pop(msg_id)
 
     def check_message_validity(self, message):
         mandatory_keys = ["data", "type", "receiver", "msg_id", "sender"]
@@ -356,7 +357,11 @@ class Node:
                     return False
             return True
         return False
+
     def contact_auth_server(self, message, addr):
+        """
+        Sends a message through the tor network to the specified address by adding it in the hop list
+        """
         hop_list = self.generate_path()
         hop_list.append(addr)  # the address of the auth server
         if not hop_list:
@@ -380,7 +385,7 @@ class Node:
 
     def authenticate(self, user, pw, addr):
         """
-        Challenge response
+        Triggers challenge response protocol and tries the challenge
         """
         if user in self.pending_auth:
             print("Already in a challenge-response process")
