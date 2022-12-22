@@ -20,7 +20,7 @@ class DirectoryNode(Node):
 
         if msg_type == "ping":
             sender = msg["sender"]
-            print(f"Directory Node received from {sender} : {msg} ")
+            # print(f"Directory Node received from {sender} : {msg} ")
             self.node_server.connection_threads[sender] = connection  # Register the connection thread with the actual sender
             connection.client_address = sender
 
@@ -30,7 +30,7 @@ class DirectoryNode(Node):
 
     def reply_with_nodes(self, msg):
         reply = self.construct_message(self.active_nodes, "ping", receiver=msg["sender"], id=msg["msg_id"])
-        print(f"Directory node sent back {reply}")
+        # print(f"Directory node sent back {reply}")
         self.send_message(reply)
 
     def register_active_node(self, addr_sender):

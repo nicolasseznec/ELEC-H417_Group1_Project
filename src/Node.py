@@ -82,7 +82,11 @@ class Node:
             print(self.active_nodes)
             return None
         else:
-            return random.sample(self.active_nodes, 3)
+            path = random.sample(self.active_nodes, 3)
+            if not (self.host, self.port) in path:
+                return path
+            else:
+                return self.generate_path()
 
     def handle_user_input(self):
         """
@@ -318,7 +322,7 @@ class Node:
     def update_active_nodes(self, active_nodes):
         self.active_nodes = active_nodes
         # self.handle_user_input()
-        print(f"Received active nodes : {active_nodes}")
+        # print(f"Received active nodes : {active_nodes}")
 
     def check_data_validity(self, decrypted_data):
         mandatory_keys = ["data", "type", "receiver", "msg_id", "sender"]
@@ -328,18 +332,25 @@ class Node:
                     return False
             return True
 
-    # def register(self, user, pw, addr):
-    #     private_key, public_key = generate_self_keys()
-    #     msg_id = generate_id_list(1)
-    #     message = self.construct_message(public_key, "key", addr, msg_id)
-    #     message["user"] = user
-    #
-    #     self.pending_key_list[msg_id] = []
-    #     waiting_thread = WaitingThread()
-    #     waiting_thread.start()
-    #     self.waiting_threads[msg_id] = waiting_thread
-    #     self.message_tor_send(message, "msg")
-    #     waiting_thread.join()
-    #
-    #
-    #     pass
+    def register(self, user, pw, addr):
+        """
+        Register through the tor network
+        :param user: username
+        :param pw: password
+        :param addr: (host, port) of the authentication server
+        """
+        hop_list = self.generate_path()
+        hop_list.append(addr)   # the address of the auth server
+        if not hop_list:
+            return
+        id_list = generate_id_list(len(hop_list))
+        key_list = self.launch_key_exchange(hop_list, id_list)
+        self.pending_request[id_list[0]] = key_list
+        message = self.construct_message(pw, "register")    # Only the server will see it
+        message["user"] = user
+        message = self.onion_pack(hop_list, key_list, id_list, message)
+        self.send_message(message)
+
+
+
+

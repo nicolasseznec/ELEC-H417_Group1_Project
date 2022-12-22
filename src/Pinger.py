@@ -21,6 +21,6 @@ class Pinger(ConnectionThread):
     def ping_loop(self):
         while not self.flag.is_set():
             ping = self.construct_ping()
-            print(f"{self.sender} ping !")
+            # print(f"{self.sender} ping !")
             self.send(ping)
             time.sleep(self.interval)
