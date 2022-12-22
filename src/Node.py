@@ -119,7 +119,6 @@ class Node:
         else:
             connection = self.node_server.connection_threads[receiver]
         connection.send(dumped_message)
-        # self.node_server.connection_threads.pop(receiver)
 
     def data_handler(self, msg, connection):
         """
@@ -163,7 +162,7 @@ class Node:
 
                 key = self.table.get_key(msg["msg_id"], msg["sender"])
                 if key is not None:
-                    decrypted_data = decrypt_cbc(key, encrypted_data)
+                    decrypted_data = decrypt_ecb(key, encrypted_data)
                 else:
                     return
                 if not self.check_data_validity(decrypted_data):
@@ -190,7 +189,7 @@ class Node:
                 # encryption
                 data = pickle.dumps(msg)
                 key = self.table.get_key(line[0], line[1])
-                encrypted_data = encrypt_cbc(key, data)
+                encrypted_data = encrypt_ecb(key, data)
                 # Transferring the message
                 msg_id, receiver = self.table.get_transfer(line[0], line[1])
                 message = self.construct_message(encrypted_data, "msg", receiver, msg_id)
@@ -259,7 +258,7 @@ class Node:
         if i < 0:
             return root_message
 
-        encryption = encrypt_cbc(key_list[i], root_message)
+        encryption = encrypt_ecb(key_list[i], root_message)
         msg_id = id_list[i]
         if i != 0:
             sender = hop_list[i - 1]
@@ -306,7 +305,7 @@ class Node:
 
         key = self.table.get_key(msg_id, addr)
         
-        encrypted_result = encrypt_cbc(key, result)
+        encrypted_result = encrypt_ecb(key, result)
         message = self.construct_message(encrypted_result, "msg", addr, msg_id)
 
         mark_message(message)
@@ -379,7 +378,7 @@ class Node:
         :param pw: password
         :param addr: (host, port) of the authentication server
         """
-        message = self.construct_message(pw, "register", sender="")  # Only the server will see it
+        message = self.construct_message(compute_hash([pw]), "register", sender="")  # Only the server will see it
         message["user"] = user
         self.contact_auth_server(message, addr)
 
@@ -412,13 +411,3 @@ class Node:
             message = pickle.dumps(message)
             self.message_tor_send(message, "response", addr)
 
-
-
-
-
-    # def check_list_length(self, list, flag, starting_length):
-    #     while not flag.is_set():
-    #         current_length = len(list)
-    #         if current_length != starting_length:
-    #             flag.set()
-    #         sleep(1)

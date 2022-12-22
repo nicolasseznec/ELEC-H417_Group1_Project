@@ -4,7 +4,7 @@ import pickle
 import uuid
 from random import randint
 
-from src.Key import decrypt_cbc
+from src.Key import decrypt_ecb
 
 
 def byte_to_dict(string):
@@ -53,7 +53,7 @@ def unwrap_onion(key_list, msg):
     else:
         key = key_list[0]
         encrypted_data = msg["data"]
-        decrypted_data = decrypt_cbc(key, encrypted_data)
+        decrypted_data = decrypt_ecb(key, encrypted_data)
         decrypted_data = byte_to_dict(decrypted_data)
         return unwrap_onion(key_list[1:], decrypted_data)
 

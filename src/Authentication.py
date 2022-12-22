@@ -1,7 +1,7 @@
 import pickle
 
 from src.AuthServerThread import AuthServerThread
-from src.Key import generate_self_keys, generate_shared_keys, decrypt_cbc
+from src.Key import generate_self_keys, generate_shared_keys, decrypt_ecb
 from src.Node import Node
 from src.Request import check_request_validity
 from constants import *

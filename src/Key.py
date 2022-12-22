@@ -8,10 +8,6 @@ from pyDH import DiffieHellman
 from Crypto.Cipher import AES
 from Crypto.Util import Padding
 
-g = 2
-p = 7919
-bits = 128
-
 
 def generate_self_keys():
     # private_key = random.getrandbits(bits)
@@ -33,7 +29,7 @@ def generate_shared_keys(private_key, public_key):
     return hashed_key
 
 
-def encrypt_cbc(key, plaintext):
+def encrypt_ecb(key, plaintext):
     # if type(plaintext) is dict:
     #     print(plaintext)
     #     plaintext = pickle.dumps(plaintext)
@@ -50,7 +46,7 @@ def encrypt_cbc(key, plaintext):
     return ciphertext
 
 
-def decrypt_cbc(key, ciphertext):
+def decrypt_ecb(key, ciphertext):
     # Create the cipher object and set the mode to ECB
     cipher = AES.new(key, AES.MODE_ECB)
     # ciphertext = b64decode(ciphertext)

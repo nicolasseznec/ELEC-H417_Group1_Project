@@ -16,7 +16,7 @@ class NodeServerThread(threading.Thread):
         self.id = node.id
 
         self.connection_threads = {}
-        self.diconnections = Queue()
+        self.disconnections = Queue()
         self.flag = threading.Event()
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -41,8 +41,8 @@ class NodeServerThread(threading.Thread):
             except Exception as e:
                 raise e
 
-            while not self.diconnections.empty():
-                address = self.diconnections.get()
+            while not self.disconnections.empty():
+                address = self.disconnections.get()
                 connection = self.connection_threads.pop(address, None)
                 if connection:
                     connection.stop()
@@ -93,7 +93,7 @@ class NodeServerThread(threading.Thread):
             node.send(message)
 
     def create_connection(self, sock, client_address):
-        return ConnectionThread(self.node.message_queue, self.diconnections, sock, client_address)
+        return ConnectionThread(self.node.message_queue, self.disconnections, sock, client_address)
 
     def create_pinger(self, message_queue, address):
         try:
@@ -102,7 +102,7 @@ class NodeServerThread(threading.Thread):
             sock.send(str(self.id).encode(ENCODING))
             connected_node_id = sock.recv(1024).decode(ENCODING)
             print(f"Node {self.id} connected with directory node")
-            pinger = Pinger(message_queue, self.diconnections, sock, (self.host, self.port), address)
+            pinger = Pinger(message_queue, self.disconnections, sock, (self.host, self.port), address)
             pinger.start()
             return pinger
         except ConnectionRefusedError:
