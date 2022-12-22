@@ -25,7 +25,9 @@ class InputHandler(threading.Thread):
                         method = arg[1]
                         url = arg[2]
                         request = construct_request(method, url)
-                        self.node.message_tor_send(request)
+                        self.node.message_tor_send(request, "request")
+                if arg[0] == "-stop":
+                    self.node.stop_connection()
                 else:
                     self.print_help()
 
