@@ -1,6 +1,7 @@
 import json
 import pickle
 import random
+import threading
 import time
 import uuid
 
@@ -30,11 +31,10 @@ class Node:
         self.pending_key_list = {}
         self.waiting_threads = {}
 
-        # Message first sent from this Node
-        self.self_messages = {}
+        # Information concerning a challenge response protocol
+        self.pending_auth = {}
 
         self.input_handler = InputHandler(self)
-        # self.active_nodes = {(LOCALHOST, 101), (LOCALHOST, 102), (LOCALHOST, 103), (LOCALHOST, 104), (LOCALHOST, 105), (LOCALHOST, 106)}
         self.active_nodes = set()
         self.message_queue = Queue()
         self.stop_flag = threading.Event()
@@ -66,7 +66,7 @@ class Node:
         if id is not None:
             dico["msg_id"] = id
         else:
-            dico["msg_id"] = random.randint(0, 100)
+            dico["msg_id"] = uuid.uuid4()
         if sender is not None:
             dico["sender"] = sender
         else:
@@ -78,17 +78,22 @@ class Node:
     def generate_path(self):
         n = len(self.active_nodes)
         if n < 5:
-            print("Not enough nodes")
-            return
+            print("Not enough nodes : ", n)
+            print(self.active_nodes)
+            return None
         else:
-            return random.sample(self.active_nodes, 3)
+            path = random.sample(self.active_nodes, 3)
+            if not (self.host, self.port) in path:
+                return path
+            else:
+                return self.generate_path()
 
     def handle_user_input(self):
         """
         Handle user input commands.
         """
-        self.input_handler.start()
-        # should wait until the active nodes are retrieved at least once (1 ping to directory node)
+        if not self.input_handler.isAlive():
+            self.input_handler.start()
 
     def handle_messages(self):
         """
@@ -124,7 +129,7 @@ class Node:
         Receive a message in input,
         handles it in order to transfer it, reply, ...
         """
-        # msg = str_to_dict(data)
+
         print("Node " + str(self.id) + " received : " + str(msg))
 
         if not self.check_message_validity(msg):
@@ -132,7 +137,8 @@ class Node:
 
         msg_type = msg["type"]
         sender = msg["sender"]
-        self.node_server.connection_threads[sender] = connection  # Register the connection thread with the actual sender
+        self.node_server.connection_threads[
+            sender] = connection  # Register the connection thread with the actual sender
         connection.client_address = sender
 
         if msg_type == "key":
@@ -143,13 +149,13 @@ class Node:
             self.update_active_nodes(msg["data"])
             return
 
-        if msg_type == "msg":
-            if msg["msg_id"] in self.pending_request:   # TODO maybe
+        if msg_type == "msg" or msg_type == "challenge":
+            if msg["msg_id"] in self.pending_request:
                 # Last point on the way back
-                self.handle_response(msg)
+                self.handle_result(msg)
                 return
             if msg["msg_id"] in self.pending_key_list:
-                decrypted_data = unpack_onion(self.pending_key_list[msg["msg_id"]], msg)
+                decrypted_data = unwrap_onion(self.pending_key_list[msg["msg_id"]], msg)
                 self.update_pending_key_list(msg["msg_id"], decrypted_data)  # Getting the public key back
                 return
 
@@ -163,18 +169,23 @@ class Node:
                     decrypted_data = decrypt_cbc(key, encrypted_data)
                 else:
                     return
-
-                typed = decrypted_data["type"]
-                if typed == "request":
+                if not self.check_data_validity(decrypted_data):
+                    return
+                msg_type = decrypted_data["type"]
+                if msg_type == "request":
                     # Exit Node
                     self.handle_request(msg["msg_id"], (msg["sender"][0], msg["sender"][1]), decrypted_data["data"])
                     return
-
+                if not self.check_data_validity(decrypted_data):
+                    return
                 # Add the transfer in the table
+                print(f"{self.id} recv {decrypted_data} ")
                 self.table.new_transfer(msg["msg_id"], (msg["sender"][0], msg["sender"][1]),
                                         decrypted_data["msg_id"],
                                         (decrypted_data["receiver"][0], decrypted_data["receiver"][1]))
-                if typed == "msg" or typed == "key":
+                # List of the types to transfer
+                transfer_type = ["auth", "response", "msg", "key"]
+                if msg_type in transfer_type:
                     # Transfer it
                     self.send_message(decrypted_data)
 
@@ -226,15 +237,17 @@ class Node:
 
         return key_list
 
-    def message_tor_send(self, request):
+    def message_tor_send(self, content, msg_type, receiver=None):
         """
         Sends a message in the tor network from A to Z
         """
         node_list = self.generate_path()
+        if not node_list:
+            return
         id_list = generate_id_list(len(node_list))
         key_list = self.launch_key_exchange(node_list, id_list)
         self.pending_request[id_list[0]] = key_list
-        message = self.construct_message(request, "request", sender="", id=id_list[-1])
+        message = self.construct_message(content, msg_type, sender=node_list[-1], receiver=receiver)
         message = self.onion_pack(node_list, key_list, id_list, message)
         self.send_message(message)
 
@@ -261,13 +274,29 @@ class Node:
         else:
             return self.onion_pack(hop_list, key_list, id_list, message, i=i - 1)
 
-    def handle_response(self, msg):
+    def handle_result(self, msg):
         """
-        Final decryption of the response
+        Final decryption of the result
         """
         key_list = self.pending_request.get(msg["msg_id"])
         self.pending_request.pop(msg["msg_id"])
-        decrypted_data = unpack_onion(key_list, msg)
+        decrypted_data = unwrap_onion(key_list, msg)
+        print(decrypted_data)
+        if isinstance(decrypted_data, dict):
+            # Challenge
+            if decrypted_data["type"] == "challenge":
+                user = decrypted_data.get("user")
+                print(self.pending_auth)
+                if not user:
+                    return
+                if user in self.pending_auth:
+                    # Continue the challenge response process
+                    print(self.waiting_threads)
+                    self.waiting_threads[user].wake()
+                    self.waiting_threads.pop(user)
+                    self.pending_auth[user] = decrypted_data.get("data")
+                else:
+                    return
 
         print(decrypted_data)
 
@@ -275,11 +304,13 @@ class Node:
         """
         Exit node action
         """
-        response = exec_request(request)
+        result = exec_request(request)
 
         key = self.table.get_key(id, addr)
-        encrypted_response = encrypt_cbc(key, response)
-        message = self.construct_message(encrypted_response, "msg", addr, id)
+        
+        encrypted_result = encrypt_cbc(key, result)
+        message = self.construct_message(encrypted_result, "msg", addr, id)
+
         mark_message(message)
         self.send_message(message)
 
@@ -312,5 +343,77 @@ class Node:
 
     def update_active_nodes(self, active_nodes):
         self.active_nodes = active_nodes
-        print(f"Received active nodes : {active_nodes}")
+        # self.handle_user_input()
+        # print(f"Received active nodes : {active_nodes}")
 
+    def check_data_validity(self, decrypted_data):
+        mandatory_keys = ["data", "type", "receiver", "msg_id", "sender"]
+        if isinstance(decrypted_data, dict):
+            for key in mandatory_keys:
+                if not decrypted_data.get(key):
+                    print(f"missing key : {key}")
+                    print(decrypted_data)
+                    return False
+            return True
+        return False
+    def contact_auth_server(self, message, addr):
+        hop_list = self.generate_path()
+        hop_list.append(addr)  # the address of the auth server
+        if not hop_list:
+            return
+        id_list = generate_id_list(len(hop_list))
+        key_list = self.launch_key_exchange(hop_list, id_list)
+        self.pending_request[id_list[0]] = key_list
+        message = self.onion_pack(hop_list, key_list, id_list, message)
+        self.send_message(message)
+
+    def register(self, user, pw, addr):
+        """
+        Register through the tor network
+        :param user: username
+        :param pw: password
+        :param addr: (host, port) of the authentication server
+        """
+        message = self.construct_message(pw, "register", sender="")  # Only the server will see it
+        message["user"] = user
+        self.contact_auth_server(message, addr)
+
+    def authenticate(self, user, pw, addr):
+        """
+        Challenge response
+        """
+        if user in self.pending_auth:
+            print("Already in a challenge-response process")
+            return
+        message = self.construct_message("", "auth", sender="", receiver=addr)
+        message["user"] = user
+        message = pickle.dumps(message)
+        self.message_tor_send(message, "auth", addr)
+        waiting_thread = WaitingThread()
+        self.waiting_threads[user] = waiting_thread
+        waiting_thread.start()
+        self.pending_auth[user] = "waiting"
+        waiting_thread.join()
+        nonce = self.pending_auth.get(user)
+        self.pending_auth.pop(user)
+        if nonce == 0:
+            print("Not registered, please register")
+            return
+        if nonce:
+            pw_hash = compute_hash([pw])
+            response = compute_hash([nonce, pw_hash])
+            message = self.construct_message(response, "response", sender="", receiver=addr)
+            message["user"] = user
+            message = pickle.dumps(message)
+            self.message_tor_send(message, "response", addr)
+
+
+
+
+
+    # def check_list_length(self, list, flag, starting_length):
+    #     while not flag.is_set():
+    #         current_length = len(list)
+    #         if current_length != starting_length:
+    #             flag.set()
+    #         sleep(1)

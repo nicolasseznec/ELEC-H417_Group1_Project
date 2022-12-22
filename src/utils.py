@@ -1,3 +1,4 @@
+import hashlib
 import json
 import pickle
 import uuid
@@ -40,7 +41,7 @@ def generate_id_list(length):
     return return_list
 
 
-def unpack_onion(key_list, msg):
+def unwrap_onion(key_list, msg):
     """
     Decrypt an onion message recursively
     """
@@ -54,8 +55,26 @@ def unpack_onion(key_list, msg):
         encrypted_data = msg["data"]
         decrypted_data = decrypt_cbc(key, encrypted_data)
         decrypted_data = byte_to_dict(decrypted_data)
-        return unpack_onion(key_list[1:], decrypted_data)
+        return unwrap_onion(key_list[1:], decrypted_data)
 
 
 def mark_message(message):
+    """
+    Put a mark on a message, once a message is marked, its route will be deleted after him
+    """
     message["mark"] = 1
+
+
+def compute_hash(list):
+    if len(list) > 0:
+        hash_string = ""
+        for elem in list:
+            hash_string += str(elem)
+        return hashlib.sha256(hash_string.encode('utf-8')).hexdigest()
+    return None
+
+
+def generate_nonce():
+    return uuid.uuid4()
+
+  

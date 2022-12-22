@@ -6,8 +6,8 @@ from ConnectionsThread import ConnectionThread
 
 
 class Pinger(ConnectionThread):
-    def __init__(self, message_queue, disonnection_queue, sock, sender, receiver, interval=30.0):
-        super().__init__(message_queue, disonnection_queue, sock, receiver, timeout=50)  # No timeout ?
+    def __init__(self, message_queue, disconnection_queue, sock, sender, receiver, interval=30.0):
+        super().__init__(message_queue, disconnection_queue, sock, receiver, timeout=50)  # No timeout ?
         self.directory_node_addr = receiver
         self.sender = sender
         self.interval = interval
@@ -21,6 +21,6 @@ class Pinger(ConnectionThread):
     def ping_loop(self):
         while not self.flag.is_set():
             ping = self.construct_ping()
-            print(f"{self.sender} ping !")
+            # print(f"{self.sender} ping !")
             self.send(ping)
             time.sleep(self.interval)
