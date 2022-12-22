@@ -307,8 +307,10 @@ class Node:
         result = exec_request(request)
 
         key = self.table.get_key(id, addr)
+        
         encrypted_result = encrypt_cbc(key, result)
         message = self.construct_message(encrypted_result, "msg", addr, id)
+
         mark_message(message)
         self.send_message(message)
 
