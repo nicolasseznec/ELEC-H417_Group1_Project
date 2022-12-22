@@ -1,4 +1,5 @@
 import time
+import argparse
 
 from constants import LOCALHOST
 from Node import *
@@ -6,25 +7,13 @@ from DirectoryNode import DirectoryNode
 
 
 def main():
-    # Initialization
-    # -------- 1. Get the list of Nodes ----------
-    # (use a directory authority ?)
-    # Retrieve the list each time
-    # Register the new node as part of relays
 
-    # -------- 2. Establish the circuit ----------
-    # Select the guard, middle and exit node
-    # Build the circuit step by step, retreiving the key of each node
+    parser = argparse.ArgumentParser()
+    parser.add_argument("port", type=int, required=True)
+    args = parser.parse_args()
 
-    # -------- 3. Send message -------------------
-    # encrypt in layers
-    # send to guard node
-
-    # -------- 4. Recieve message ----------------
-    # Recieve encrypted message
-    # decrypt layers
-    pass
-
+    port = args.port
+    print(port)
     # dirNode = DirectoryNode(DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT, 1000)
     # node0 = Node(LOCALHOST, 1000, 0)
     # node1 = Node(LOCALHOST, 101, 1)
