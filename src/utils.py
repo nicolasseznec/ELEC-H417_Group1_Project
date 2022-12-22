@@ -1,3 +1,4 @@
+import hashlib
 import json
 import pickle
 import uuid
@@ -58,4 +59,20 @@ def unwrap_onion(key_list, msg):
 
 
 def mark_message(message):
+    """
+    Put a mark on a message, once a message is marked, its route will be deleted after him
+    """
     message["mark"] = 1
+
+
+def compute_hash(list):
+    if len(list) > 0:
+        hash_string = ""
+        for elem in list:
+            hash_string += str(elem)
+        return hashlib.sha256(hash_string.encode('utf-8')).hexdigest()
+    return None
+
+
+def generate_nonce():
+    return uuid.uuid4()

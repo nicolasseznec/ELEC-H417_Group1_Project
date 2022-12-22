@@ -1,8 +1,11 @@
+import pickle
+
 from src.AuthServerThread import AuthServerThread
 from src.Key import generate_self_keys, generate_shared_keys, decrypt_cbc
 from src.Node import Node
 from src.Request import check_request_validity
 from constants import *
+from src.utils import compute_hash, generate_nonce, mark_message
 
 
 class Authentication(Node):
@@ -12,8 +15,11 @@ class Authentication(Node):
         # {(msg_id, addr) : shared_key}
         self.key_table = {}
 
-        # {user : pw}
+        self.pending_challenge = {}
+        # {user : sha256(pw)}
         self.user_pw_table = {}
+        self.user_pw_table["user32"] = "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
+
 
     def create_server(self):
         server = AuthServerThread(self)
@@ -28,25 +34,13 @@ class Authentication(Node):
         if msg["type"] == "key":
             self.reply_with_key(msg)
 
-        if msg["type"] == "msg":
-            line = (msg["msg_id"], msg["sender"])
-            if line in self.key_table:
-                encrypted_data = msg["data"]
-                key = self.key_table.get(line)
-                decrypted_data = decrypt_cbc(key, encrypted_data)
-                if not self.check_data_validity(decrypted_data):
-                    return
+        if msg["type"] == "auth":
+            self.send_challenge(msg)
 
-                # pw = decrypted_data["data"]
-                user = decrypted_data["user"]
-                if user in self.user_pw_table:
-                    if self.user_pw_table[user] == decrypted_data.get("pw"):
-                        print(f"{user} is authenticated!!")
-                        # Do what you want
-                else:
-                    # Registration
-                    self.user_pw_table[user] = decrypted_data["data"]
-                    print(f"user {user} successfully registered")
+        if msg["type"] == "response":
+            self.handle_result(msg)
+
+
 
     def reply_with_key(self, msg):
         private_key, public_key = generate_self_keys()
@@ -75,5 +69,45 @@ class Authentication(Node):
                     return False
             return True
         return False
+
+    def send_challenge(self, msg):
+        data = msg["data"]
+        data = pickle.loads(data)
+        if not self.check_data_validity(data):
+            print("invalid data")
+            print(data)
+            return
+        user = data["user"]
+        if user in self.user_pw_table:
+            nonce = generate_nonce()
+            self.pending_challenge[user] = nonce
+            # The message that the user will read
+            challenge = self.construct_message(nonce, "challenge")
+        else:
+            challenge = self.construct_message(0, "challenge")
+        challenge["user"] = user
+        # For transport issue
+        message = self.construct_message(challenge, "msg", msg["sender"], msg["msg_id"])
+        mark_message(message)
+        self.send_message(message)
+
+    def handle_result(self, msg):
+        data = msg["data"]
+        data = pickle.loads(data)
+        if not self.check_data_validity(data):
+            print("invalid data")
+            return
+        user = data["user"]
+        if user in self.user_pw_table and user in self.pending_challenge:
+            nonce = self.pending_challenge[user]
+            hashed_pw = self.user_pw_table[user]
+            expected_value = compute_hash([nonce, hashed_pw])
+
+            if data["data"] == expected_value:
+                message = self.construct_message("Successfully authenticated", "msg", msg["sender"], msg["msg_id"])
+            else:
+                message = self.construct_message("Failed the challenge", "msg", msg["sender"], msg["msg_id"])
+
+            self.send_message(message)
 
 

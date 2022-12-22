@@ -44,8 +44,10 @@ class NodeServerThread(threading.Thread):
             while not self.diconnections.empty():
                 address = self.diconnections.get()
                 connection = self.connection_threads.pop(address, None)
-                connection.stop()
-                print(f"disonnected : {address}")
+                if connection:
+                    connection.stop()
+
+                print(f"disconnected : {address}")
 
         for connection in self.connection_threads.values():
             connection.stop()
