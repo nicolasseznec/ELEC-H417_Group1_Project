@@ -34,15 +34,13 @@ python -m src.Node -port 5020
 
 If all is well, the Node should start on the specified port and show the following : 
 
-[img]
+![img](images/node.PNG)
 
 To avoid the trouble of lauching too much node manually, it is possible to use the option `-test N` in order to start *N* "passive" nodes (they will not be able to take input). The following starts 6 nodes that can then be used by a regular node (started like stated above).
 
 ```
 python -m src.Node -test 6
 ```
-
-[img]
 
 Finally, the Authentication server can be sarted simply with the following command (like a Directory Node) :
 
@@ -56,26 +54,29 @@ When starting a regular node, the user is prompted to enter a command. Once agai
 
 Note that due to a lack of optimization, the requests might take a while before getting a response.
 
-Send a Request, should fetch the html page
+- Send a Request, should fetch the html page
 ```
 --request get https://w3schools.com/python/demopage.htm
 ```
 
-[img]
+![Sending a request](images/request.PNG)
+![Receiving the html page](images/html.PNG)
 
-Login with the Authentication Server (currently the only hardcoded registered user is the one below)
+
+- Login with the Authentication Server (currently the only hardcoded registered user is the one below)
 ```
 --login user32 123
 ```
 
-[img]
+![Requesting authentication](images/auth.PNG)
+![Successfully authenticated](images/success.PNG)
 
-Enable printing of debug information
+- Enable printing of debug information
 ```
 -debug
 ```
 
-Stop the connection
+- Stop the connection
 ```
 -stop
 ```
