@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../src")
+
 import json
 import pickle
 import random
@@ -19,7 +23,7 @@ class Node:
     """
     Object representing a Node in the TOR network
     """
-    def __init__(self, host, port, index):
+    def __init__(self, host, port, index, enable_input=False):
         self.host = host
         self.port = port
         self.id = index
@@ -37,7 +41,10 @@ class Node:
         # Information concerning a challenge response protocol
         self.pending_auth = {}
 
+        self.enable_input = enable_input
+        self.input_started = False
         self.input_handler = InputHandler(self)
+
         self.active_nodes = set()
         self.message_queue = Queue()
         self.stop_flag = threading.Event()
@@ -53,8 +60,8 @@ class Node:
 
     def stop_connection(self):
         self.node_server.stop()
-        self.stop_flag.set()
         self.input_handler.stop()
+        self.stop_flag.set()
 
     def connect_to(self, addr):
         return self.node_server.connect_to(addr)
@@ -86,18 +93,11 @@ class Node:
             print(self.active_nodes)
             return None
         else:
-            path = random.sample(self.active_nodes, length)
+            path = random.choices([*self.active_nodes], k=length)
             if not (self.host, self.port) in path:
                 return path
             else:
                 return self.generate_path()
-
-    def start_handle_user_input(self):
-        """
-        Start handling the user input in the terminal
-        """
-        if not self.input_handler.isAlive():
-            self.input_handler.start()
 
     def handle_messages(self):
         """
@@ -136,8 +136,8 @@ class Node:
         Receive a message in input,
         handles it in order to transfer it, reply, ...
         """
-
-        print("Node " + str(self.id) + " received : " + str(msg))
+        if constants.DEBUG:
+            print("Node " + str(self.id) + " received : " + str(msg))
 
         if not self.check_message_validity(msg):
             return
@@ -176,14 +176,13 @@ class Node:
                     decrypted_data = decrypt_ecb(key, encrypted_data)
                 else:
                     return
-                print(decrypted_data)
+
                 msg_type = decrypted_data["type"]
                 if msg_type == "request":
                     # Exit Node
                     self.handle_request(msg["msg_id"], (msg["sender"][0], msg["sender"][1]), decrypted_data["data"])
                     return
-                if not self.check_data_validity(decrypted_data):
-                    return
+
                 # Add the transfer in the table
                 self.table.new_transfer(msg["msg_id"], (msg["sender"][0], msg["sender"][1]),
                                         decrypted_data["msg_id"],
@@ -235,7 +234,8 @@ class Node:
             waiting_thread.start()
             self.send_message(message)
             waiting_thread.join()
-            print(f"waiting :  {time.time() - timer}")
+            if constants.DEBUG:
+                print(f"waiting :  {time.time() - timer}")
 
             key_list = self.pending_key_list[entry_id]
             key_list[-1] = generate_shared_keys(private_key, key_list[-1])
@@ -287,6 +287,7 @@ class Node:
         key_list = self.pending_request.get(msg["msg_id"])
         self.pending_request.pop(msg["msg_id"])
         decrypted_data = unwrap_onion(key_list, msg)
+
         if isinstance(decrypted_data, dict):
             # Challenge
             if decrypted_data["type"] == "challenge":
@@ -296,13 +297,14 @@ class Node:
                     return
                 if user in self.pending_auth:
                     # Continue the challenge response process
-                    print(self.waiting_threads)
+                    # print(self.waiting_threads)
                     self.waiting_threads[user].wake()
                     self.waiting_threads.pop(user)
                     self.pending_auth[user] = decrypted_data.get("data")
                 else:
                     return
 
+        # print("Received :")
         print(decrypted_data)
 
     def handle_request(self, msg_id, addr, request):
@@ -351,8 +353,13 @@ class Node:
 
     def update_active_nodes(self, active_nodes):
         self.active_nodes = active_nodes
-        # self.handle_user_input()
-        # print(f"Received active nodes : {active_nodes}")
+
+        if self.enable_input and not self.input_started:
+            self.input_started = True
+            self.input_handler.start()
+
+        if constants.DEBUG:
+            print(f"Received active nodes : {active_nodes}")
 
     def check_data_validity(self, decrypted_data):
         mandatory_keys = ["data", "type", "receiver", "msg_id", "sender"]
@@ -426,3 +433,25 @@ class Node:
             message["user"] = user
             message = pickle.dumps(message)
             self.message_tor_send(message, "response", addr)
+
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-port", type=int)
+    group.add_argument("-test", type=int, metavar="N", help="start multiple nodes for test purposes")
+
+    args = parser.parse_args()
+
+    if args.test:
+        constants.DEBUG = True
+        nodes = [Node(LOCALHOST, 100+i, i, enable_input=False) for i in range(args.test)]
+
+    else:
+        port = args.port
+        Node(LOCALHOST, port, 0, enable_input=True)
+
+
+if __name__ == '__main__':
+    main()

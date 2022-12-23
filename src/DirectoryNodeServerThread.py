@@ -12,8 +12,9 @@ class DirectoryNodeServerThread(NodeServerThread):
             except socket.timeout:
                 pass
 
-            except Exception as e:
-                raise e
+            except ConnectionResetError as e:
+                print(e)
+                pass
 
             while not self.disconnections.empty():
                 address = self.disconnections.get()

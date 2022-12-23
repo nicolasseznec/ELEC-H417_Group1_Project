@@ -4,7 +4,7 @@ import pickle
 import uuid
 from random import randint
 
-from src.Key import decrypt_ecb
+from Key import decrypt_ecb
 
 
 def byte_to_dict(string):

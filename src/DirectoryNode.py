@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../src")
+
 from src.Node import *
 from src.constants import DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT
 from src.DirectoryNodeServerThread import DirectoryNodeServerThread
@@ -5,7 +9,7 @@ from src.DirectoryNodeServerThread import DirectoryNodeServerThread
 
 class DirectoryNode(Node):
     def __init__(self, host, port, index):
-        super().__init__(host, port, index)
+        super().__init__(host, port, index, enable_input=False)
 
     def create_server(self):
         node_server = DirectoryNodeServerThread(self)

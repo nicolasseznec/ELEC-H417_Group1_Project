@@ -1,6 +1,11 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../src")
+
 import time
 import argparse
 
+import src.constants
 from src.constants import LOCALHOST
 from src.Node import *
 from src.DirectoryNode import DirectoryNode
@@ -9,40 +14,19 @@ from src.DirectoryNode import DirectoryNode
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("port", type=int, required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-port", type=int)
+    group.add_argument("-test", type=int, metavar="N", help="start multiple nodes for test purposes")
+
     args = parser.parse_args()
 
-    port = args.port
-    print(port)
-    # dirNode = DirectoryNode(DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT, 1000)
-    # node0 = Node(LOCALHOST, 1000, 0)
-    # node1 = Node(LOCALHOST, 101, 1)
-    # node2 = Node(LOCALHOST, 102, 2)
-    # node3 = Node(LOCALHOST, 103, 3)
-    #
-    # hop_list = ((LOCALHOST, 102), (LOCALHOST, 101), (LOCALHOST, 103))
-    # id_list = generate_id_list(3)
-    #
-    # timer = time.time()
-    # key_list = node0.launch_key_exchange(hop_list, id_list)
-    # print("----------------", time.time() - timer, "-----------------------")
-    # print(key_list)
-    #
-    # node0.stop_connection()
-    # node1.stop_connection()
-    # node2.stop_connection()
-    # node3.stop_connection()
-    # dirNode.stop_connection()
+    if args.test:
+        src.constants.DEBUG = True
+        nodes = [Node(LOCALHOST, 100+i, i, enable_input=False) for i in range(args.test)]
 
-    # dirNode = DirectoryNode(DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT, 1000)
-    # node1 = Node(LOCALHOST, 101, 1)
-    # node2 = Node(LOCALHOST, 102, 2)
-    #
-    # time.sleep(10)
-    # node1.stop_connection()
-    # time.sleep(60)  # Node 2 should ping once before dirNode noticed that node1 disconnected, and once after
-    # node2.stop_connection()
-    # dirNode.stop_connection()
+    else:
+        port = args.port
+        Node(LOCALHOST, port, 0, enable_input=True)
 
 
 if __name__ == '__main__':

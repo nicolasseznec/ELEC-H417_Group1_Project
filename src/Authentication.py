@@ -151,3 +151,11 @@ class Authentication(Node):
             message = self.construct_message(f"{user} successfully registered", "msg", msg["sender"], msg["msg_id"])
         mark_message(message)
         self.send_message(message)
+
+
+def main():
+    Authentication(AUTHENTICATION_SERV_HOST, AUTHENTICATION_SERV_PORT, 0)
+
+
+if __name__ == '__main__':
+    main()

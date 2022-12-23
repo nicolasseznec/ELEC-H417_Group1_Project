@@ -1,9 +1,8 @@
 from queue import Queue
 
 from src.ConnectionsThread import *
-from src.constants import ENCODING
 from src.Pinger import Pinger
-from src.constants import DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT
+from src.constants import ENCODING, DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT, DEBUG
 
 
 class NodeServerThread(threading.Thread):
@@ -27,7 +26,6 @@ class NodeServerThread(threading.Thread):
         self.sock.listen(1)
 
         self.pinger = self.create_pinger(node.message_queue, (DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT))
-        # self.pinger = None
 
     def run(self):
         while not self.flag.is_set():
@@ -47,7 +45,8 @@ class NodeServerThread(threading.Thread):
                 if connection:
                     connection.stop()
 
-                print(f"disconnected : {address}")
+                if DEBUG:
+                    print(f"disconnected : {address}")
 
         for connection in self.connection_threads.values():
             connection.stop()
@@ -59,21 +58,12 @@ class NodeServerThread(threading.Thread):
         print("Node " + str(self.id) + " stopped")
 
     def handle_connection(self, connection, address):
-        # print(f"{self.id} accepted {address}")
-
         # Exchange IDs
         connected_node_id = connection.recv(2048).decode(ENCODING)
-        # print(f"received {connected_node_id}")
         connection.send(str(self.id).encode(ENCODING))
 
-        # if self.id != connected_node_id:
         client_thread = self.create_connection(connection, address)
         client_thread.start()
-
-        # self.connection_threads[address] = client_thread
-        # else:
-        #     connection.close()
-        # print(f"{self.id} threads : {self.connection_threads}")
 
     def connect_to(self, address):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -81,7 +71,8 @@ class NodeServerThread(threading.Thread):
 
         sock.send(str(self.id).encode(ENCODING))
         connected_node_id = sock.recv(1024).decode(ENCODING)
-        print(f"Node {self.id} connected with node: {connected_node_id}")
+        if DEBUG:
+            print(f"Node {self.id} connected with node: {connected_node_id}")
 
         thread_client = self.create_connection(sock, address)
 
@@ -101,13 +92,14 @@ class NodeServerThread(threading.Thread):
             sock.connect(address)
             sock.send(str(self.id).encode(ENCODING))
             connected_node_id = sock.recv(1024).decode(ENCODING)
-            print(f"Node {self.id} connected with directory node")
+            if DEBUG:
+                print(f"Node {self.id} connected with directory node")
             pinger = Pinger(message_queue, self.disconnections, sock, (self.host, self.port), address)
             pinger.start()
             return pinger
-        except ConnectionRefusedError:
+        except ConnectionRefusedError as e:
             print(f"Could not connect to Directory node at {address}")
-            return None
+            raise e
 
     def stop(self):
         self.flag.set()
