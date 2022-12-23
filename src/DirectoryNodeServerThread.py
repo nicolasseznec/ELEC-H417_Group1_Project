@@ -1,5 +1,5 @@
-from ConnectionsThread import *
-from NodeServerThread import NodeServerThread
+from src.ConnectionsThread import *
+from src.NodeServerThread import NodeServerThread
 
 
 class DirectoryNodeServerThread(NodeServerThread):

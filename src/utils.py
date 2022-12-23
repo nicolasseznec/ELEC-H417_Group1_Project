@@ -18,17 +18,6 @@ def byte_to_dict(string):
         return None
 
 
-def dict_to_byte(dict):
-    if type(dict) is bytes:
-        return bytes
-    else:
-        try:
-            return_value = pickle.dumps(dict)
-        except json.decoder.JSONDecodeError:
-            return None
-    return return_value
-
-
 def generate_id_list(length):
     """
     Generates a random list of msg_id of the desired length

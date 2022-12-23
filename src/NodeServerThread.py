@@ -1,9 +1,9 @@
 from queue import Queue
 
-from ConnectionsThread import *
-from constants import ENCODING
-from Pinger import Pinger
-from constants import DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT
+from src.ConnectionsThread import *
+from src.constants import ENCODING
+from src.Pinger import Pinger
+from src.constants import DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT
 
 
 class NodeServerThread(threading.Thread):

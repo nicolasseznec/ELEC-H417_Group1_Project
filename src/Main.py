@@ -1,9 +1,9 @@
 import time
 import argparse
 
-from constants import LOCALHOST
-from Node import *
-from DirectoryNode import DirectoryNode
+from src.constants import LOCALHOST
+from src.Node import *
+from src.DirectoryNode import DirectoryNode
 
 
 def main():

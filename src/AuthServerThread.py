@@ -1,5 +1,5 @@
-from ConnectionsThread import *
-from NodeServerThread import NodeServerThread
+from src.ConnectionsThread import *
+from src.NodeServerThread import NodeServerThread
 
 
 class AuthServerThread(NodeServerThread):
@@ -20,7 +20,7 @@ class AuthServerThread(NodeServerThread):
                 connection = self.connection_threads.pop(address, None)
                 connection.stop()
 
-                print(f"disonnected : {address}")
+                print(f"disconnected : {address}")
                 self.node.unregister_node(address)
 
         for connection in self.connection_threads.values():

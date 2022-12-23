@@ -1,6 +1,6 @@
-from Node import *
-from constants import DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT
-from DirectoryNodeServerThread import DirectoryNodeServerThread
+from src.Node import *
+from src.constants import DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT
+from src.DirectoryNodeServerThread import DirectoryNodeServerThread
 
 
 class DirectoryNode(Node):
