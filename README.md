@@ -1,12 +1,11 @@
 # ELEC-H417_Group1_Project
 
-TODO : 
-- [ ] Report
-- [x] Challenge-Response
-- [x] Delete key/transfer from table when returning (put a mark?)
-- [x] Optimize the speed by keeping the connections longer
-- [ ] Handle the message length (what to do when it overloads the communication?)
-- [ ] (Develop a server to put in the simulation network for test purpose)
-- [x] Make a check_message_validity() method to check it before doing data_handler on it
-- [x] Manage the input of the client in the terminal (thread?)
-- ...
+This project consists in designing a peer to peer TOR network, able to admit and manage a variable number of peers, and allow those peers to anonymously send requests to a server.
+
+The required libraries are in the requirement.txt. 
+Their installation can be easily with pip.
+For example:
+``pip install pycryptodome ``
+
+Every node of the network is instantiated with the creation of a **Node** object
+
