@@ -414,6 +414,7 @@ class Node:
         waiting_thread.start()
         self.pending_auth[user] = "waiting"
         waiting_thread.join()
+        print("getting ou")
         nonce = self.pending_auth.get(user)
         self.pending_auth.pop(user)
         if nonce == 0:
