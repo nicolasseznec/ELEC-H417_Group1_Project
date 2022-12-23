@@ -7,7 +7,7 @@ from src.ConnectionsThread import ConnectionThread
 
 class Pinger(ConnectionThread):
     """
-    ConnectionThread that pings each X time the same destination
+    ConnectionThread that pings the same destination periodically
     """
     def __init__(self, message_queue, disconnection_queue, sock, sender, receiver, interval=30.0):
         super().__init__(message_queue, disconnection_queue, sock, receiver, timeout=50)  # No timeout ?

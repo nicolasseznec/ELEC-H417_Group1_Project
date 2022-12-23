@@ -8,6 +8,10 @@ from src.DirectoryNodeServerThread import DirectoryNodeServerThread
 
 
 class DirectoryNode(Node):
+    """
+    Node acting as a Directory Authority. Keeps track of currently running nodes and
+    provide them with the list of active nodes.
+    """
     def __init__(self, host, port, index):
         super().__init__(host, port, index, enable_input=False)
 
@@ -17,6 +21,13 @@ class DirectoryNode(Node):
         return node_server
 
     def data_handler(self, msg, connection):
+        """
+        Receives a "ping" from a node to signal its activity, sends back the updated list of nodes
+
+        :param msg: The received message
+        :param connection: The connection thread that received the message
+        :return:
+        """
         if not self.check_message_validity(msg):
             return
 
@@ -45,6 +56,9 @@ class DirectoryNode(Node):
 
 
 def main():
+    """
+    Launch a Directory Node
+    """
     DirectoryNode(DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT, 0)
 
 
