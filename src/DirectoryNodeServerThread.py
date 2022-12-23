@@ -1,5 +1,5 @@
-from ConnectionsThread import *
-from NodeServerThread import NodeServerThread
+from src.ConnectionsThread import *
+from src.NodeServerThread import NodeServerThread
 
 
 class DirectoryNodeServerThread(NodeServerThread):
@@ -12,11 +12,12 @@ class DirectoryNodeServerThread(NodeServerThread):
             except socket.timeout:
                 pass
 
-            except Exception as e:
-                raise e
+            except ConnectionResetError as e:
+                print(e)
+                pass
 
-            while not self.diconnections.empty():
-                address = self.diconnections.get()
+            while not self.disconnections.empty():
+                address = self.disconnections.get()
                 connection = self.connection_threads.pop(address, None)
                 connection.stop()
 
@@ -30,7 +31,7 @@ class DirectoryNodeServerThread(NodeServerThread):
         print("Node " + str(self.id) + " stopped")
 
     def create_connection(self, sock, client_address):
-        return ConnectionThread(self.node.message_queue, self.diconnections, sock, client_address, timeout=40)
+        return ConnectionThread(self.node.message_queue, self.disconnections, sock, client_address, timeout=40)
 
     def create_pinger(self, message_queue, address):
         return None

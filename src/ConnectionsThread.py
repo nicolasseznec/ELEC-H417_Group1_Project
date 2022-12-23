@@ -33,6 +33,10 @@ class ConnectionThread(threading.Thread):
             except EOFError:
                 pass
 
+            except ConnectionResetError:
+                print("A Connection ended abruptly")
+                self.flag.set()
+
             except Exception as e:
                 self.flag.set()
                 raise e

@@ -1,10 +1,10 @@
 import pickle
 
 from src.AuthServerThread import AuthServerThread
-from src.Key import generate_self_keys, generate_shared_keys, decrypt_cbc
+from src.Key import generate_self_keys, generate_shared_keys, decrypt_ecb, encrypt_ecb
 from src.Node import Node
 from src.Request import check_request_validity
-from constants import *
+from src.constants import *
 from src.utils import compute_hash, generate_nonce, mark_message
 
 
@@ -15,11 +15,15 @@ class Authentication(Node):
         # {(msg_id, addr) : shared_key}
         self.key_table = {}
 
+        # {user : nonce}
         self.pending_challenge = {}
+
         # {user : sha256(pw)}
         self.user_pw_table = {}
-        self.user_pw_table["user32"] = "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
 
+        # Hard coded for test purpose
+        # username: user32, password:123
+        self.user_pw_table["user32"] = "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
 
     def create_server(self):
         server = AuthServerThread(self)
@@ -31,16 +35,39 @@ class Authentication(Node):
         if not self.check_message_validity(msg):
             return
 
-        if msg["type"] == "key":
+        msg_type = msg["type"]
+        if msg_type == "key":
             self.reply_with_key(msg)
 
-        if msg["type"] == "auth":
+        if msg_type == "auth":
             self.send_challenge(msg)
 
-        if msg["type"] == "response":
+        if msg_type == "response":
             self.handle_result(msg)
 
+        if msg_type == "register":
+            self.handle_register(msg)
 
+        if msg["type"] == "msg":
+            # Secured Registration through a secured channel
+            line = (msg["msg_id"], msg["sender"])
+            if line in self.key_table:
+                encrypted_data = msg["data"]
+                key = self.key_table.get(line)
+                decrypted_data = decrypt_ecb(key, encrypted_data)
+                if not self.check_data_validity(decrypted_data):
+                    return
+                user = decrypted_data["user"]
+                if user in self.user_pw_table:
+                    message = "Already registered under this username"
+                else:
+                    # Registration
+                    self.user_pw_table[user] = decrypted_data["data"]
+                    message = f"{user} successfully registered"
+                encrypted_data = encrypt_ecb(key, message)
+                message = self.construct_message(encrypted_data, "msg", msg["sender"], msg["msg_id"])
+                mark_message(message)
+                self.send_message(message)
 
     def reply_with_key(self, msg):
         private_key, public_key = generate_self_keys()
@@ -107,7 +134,28 @@ class Authentication(Node):
                 message = self.construct_message("Successfully authenticated", "msg", msg["sender"], msg["msg_id"])
             else:
                 message = self.construct_message("Failed the challenge", "msg", msg["sender"], msg["msg_id"])
-
+            mark_message(message)
             self.send_message(message)
 
+    def handle_register(self, msg):
+        data = msg["data"]
+        data = pickle.loads(data)
+        if not self.check_data_validity(data):
+            print("invalid data")
+            return
+        user = data["user"]
+        if user in self.user_pw_table:
+            message = self.construct_message("Already registered under this username", "msg", msg["sender"], msg["msg_id"])
+        else:
+            self.user_pw_table[user] = data["data"]
+            message = self.construct_message(f"{user} successfully registered", "msg", msg["sender"], msg["msg_id"])
+        mark_message(message)
+        self.send_message(message)
 
+
+def main():
+    Authentication(AUTHENTICATION_SERV_HOST, AUTHENTICATION_SERV_PORT, 0)
+
+
+if __name__ == '__main__':
+    main()

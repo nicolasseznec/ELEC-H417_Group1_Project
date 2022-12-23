@@ -1,11 +1,15 @@
-from Node import *
-from constants import DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT
-from DirectoryNodeServerThread import DirectoryNodeServerThread
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../src")
+
+from src.Node import *
+from src.constants import DIRECTORY_NODE_HOST, DIRECTORY_NODE_PORT
+from src.DirectoryNodeServerThread import DirectoryNodeServerThread
 
 
 class DirectoryNode(Node):
     def __init__(self, host, port, index):
-        super().__init__(host, port, index)
+        super().__init__(host, port, index, enable_input=False)
 
     def create_server(self):
         node_server = DirectoryNodeServerThread(self)
@@ -29,7 +33,7 @@ class DirectoryNode(Node):
             return
 
     def reply_with_nodes(self, msg):
-        reply = self.construct_message(self.active_nodes, "ping", receiver=msg["sender"], id=msg["msg_id"])
+        reply = self.construct_message(self.active_nodes, "ping", receiver=msg["sender"], msg_id=msg["msg_id"])
         # print(f"Directory node sent back {reply}")
         self.send_message(reply)
 
