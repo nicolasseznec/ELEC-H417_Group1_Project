@@ -15,7 +15,7 @@ node6 = Node(LOCALHOST, 106, 6)
 
 def connection_test():
     sleep(10)
-    # constants.DEBUG = True
+    constants.DEBUG = True
     node5.register("darkLordXX", "1234", (AUTHENTICATION_SERV_HOST, AUTHENTICATION_SERV_PORT))
 
 

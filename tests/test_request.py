@@ -15,7 +15,7 @@ node6 = Node(LOCALHOST, 106, 6)
 
 def connection_test():
     sleep(10)
-    # constants.DEBUG = True
+    constants.DEBUG = True
     request = construct_request("get", 'https://w3schools.com/python/demopage.htm')
     node6.message_tor_send(request, "request")
 

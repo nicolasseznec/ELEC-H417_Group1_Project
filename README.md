@@ -80,3 +80,7 @@ Note that due to a lack of optimization, the requests might take a while before 
 ```
 -stop
 ```
+
+___
+
+Different Tests are also available in tests.

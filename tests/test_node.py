@@ -14,21 +14,8 @@ LOCALHOST = "127.0.0.1"
 class TestNode(unittest.TestCase):
 
     def test(self):
-        # self.connection_test()
         # self.message_test()
         self.key_exchange_test()
-
-    def connection_test(self):
-        node0 = Node(LOCALHOST, 1000, 0)
-        node1 = Node(LOCALHOST, 1010, 1)
-
-        node0.send_message_to("Hello", "msg", (LOCALHOST, 1010))
-        node1.send_message_to("Hi", "msg", (LOCALHOST, 1000))
-
-        time.sleep(0.01)
-
-        node0.stop_connection()
-        node1.stop_connection()
 
     def key_exchange_test(self):
         node0 = Node(LOCALHOST, 1000, 0)
