@@ -93,7 +93,7 @@ class Node:
             print(self.active_nodes)
             return None
         else:
-            path = random.choices([*self.active_nodes], k=length)
+            path = random.sample([*self.active_nodes], length)
             if not (self.host, self.port) in path:
                 return path
             else:
