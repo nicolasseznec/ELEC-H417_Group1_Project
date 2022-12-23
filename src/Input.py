@@ -2,7 +2,7 @@ import threading
 import argparse
 
 from src.Request import construct_request
-from src.constants import LOCALHOST
+from src.constants import LOCALHOST, AUTHENTICATION_SERV_PORT, AUTHENTICATION_SERV_HOST
 
 
 class InputHandler(threading.Thread):
@@ -34,7 +34,7 @@ class InputHandler(threading.Thread):
                 if command.login:
                     username = command.login[0]
                     password = command.login[1]
-                    pass  # login
+                    self.node.authenticate(username, password, (AUTHENTICATION_SERV_HOST, AUTHENTICATION_SERV_PORT))
 
                 if command.request:
                     method = command.request[0]

@@ -96,7 +96,7 @@ class Node:
         """
         Start handling the user input in the terminal
         """
-        if not self.input_handler.isAlive():
+        if not self.input_handler.is_alive():
             self.input_handler.start()
 
     def handle_messages(self):
@@ -351,7 +351,7 @@ class Node:
 
     def update_active_nodes(self, active_nodes):
         self.active_nodes = active_nodes
-        # self.handle_user_input()
+        # self.start_handle_user_input()
         # print(f"Received active nodes : {active_nodes}")
 
     def check_data_validity(self, decrypted_data):
