@@ -436,7 +436,11 @@ class Node:
 
 
 def main():
-
+    """
+    Launch a node.
+    A DirectoryNode must be started beforehand.
+    An Authentication [server] must also be active if authentication is intended.
+    """
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-port", type=int)

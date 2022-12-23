@@ -4,6 +4,10 @@ import socket
 
 
 class ConnectionThread(threading.Thread):
+    """
+    Thread that handles the connection between two node via a socket.
+    Received messages are put in the message queue of the parent node.
+    """
     def __init__(self, message_queue, disonnection_queue, sock, client_address, timeout=20.0):
         super().__init__()
 
@@ -15,12 +19,10 @@ class ConnectionThread(threading.Thread):
         self.flag = threading.Event()
 
         self.sock.settimeout(timeout)
-        # self.sock.settimeout(2.0)
 
     def run(self):
         while not self.flag.is_set():
             try:
-                # TODO : Receive data properly
                 data = self.sock.recv(4096)
                 # print(f"received from {self.client_address} on {self}")
                 msg = pickle.loads(data)
@@ -46,7 +48,6 @@ class ConnectionThread(threading.Thread):
         # print(f"ended connection thread {self.client_address}")
 
     def send(self, data):
-        # self.sock.sendall(data.encode(ENCODING))
         self.sock.sendall(data)
 
     def stop(self):

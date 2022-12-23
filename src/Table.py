@@ -1,5 +1,7 @@
 class Table:
     """
+    Routing table of a node
+
     # key table
     {(id, addr): key}
 

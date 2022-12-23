@@ -16,6 +16,9 @@ def construct_request(method, url, args=None):
 
 
 def check_request_validity(request):
+    """
+    Verifies that a given request has a valid format
+    """
     mandatory_keys = ["method", "url", "args"]
     if type(request) is dict:
         for key in mandatory_keys:

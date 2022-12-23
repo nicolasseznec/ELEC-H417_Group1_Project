@@ -9,6 +9,9 @@ from src.utils import compute_hash, generate_nonce, mark_message
 
 
 class Authentication(Node):
+    """
+    Server accomodating for Challenge-Resonse Authentification
+    """
     def __init__(self, host, port, index):
         super().__init__(host, port, index)
 
